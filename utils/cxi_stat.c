@@ -161,7 +161,6 @@ static void get_port_status(struct cxi_dev *cd)
 	char buf[MAX_LEN];
 	char *base_path = NULL;
 	char *tmp_path = NULL;
-	FILE *fp;
 	int rc;
 	bool is_c1;
 
@@ -183,50 +182,55 @@ static void get_port_status(struct cxi_dev *cd)
 		rc = asprintf(&tmp_path, "%s/media", base_path);
 	else
 		rc = asprintf(&tmp_path, "%s/media/type", base_path);
-	if (rc > 0)
+	if (rc > 0) {
 		copy_data_from_file(tmp_path, cd->link_media);
-	free(tmp_path);
+		free(tmp_path);
+	}
 
 	if (is_c1)
 		rc = asprintf(&tmp_path, "%s/speed", base_path);
 	else
 		rc = asprintf(&tmp_path, "%s/link/speed", base_path);
-	if (rc > 0)
+	if (rc > 0) {
 		copy_data_from_file(tmp_path, cd->link_speed);
-	free(tmp_path);
+		free(tmp_path);
+	}
 
 	if (is_c1)
 		rc = asprintf(&tmp_path, "%s/link", base_path);
 	else
 		rc = asprintf(&tmp_path, "%s/link/state", base_path);
-	if (rc > 0)
+	if (rc > 0) {
 		copy_data_from_file(tmp_path, cd->link_state);
-	free(tmp_path);
+		free(tmp_path);
+	}
 
 	if (is_c1)
 		rc = asprintf(&tmp_path, "%s/link_layer_retry", base_path);
 	else
 		rc = asprintf(&tmp_path, "%s/llr/state", base_path);
-	if (rc > 0)
+	if (rc > 0) {
 		copy_data_from_file(tmp_path, cd->link_layer_retry);
-	free(tmp_path);
-
-	if (is_c1) {
-		rc = asprintf(&tmp_path, "%s/loopback", base_path);
-		if (rc > 0)
-			copy_data_from_file(tmp_path, cd->link_loopback);
 		free(tmp_path);
+	}
 
+	if (is_c1)
+		rc = asprintf(&tmp_path, "%s/loopback", base_path);
+        else
+		rc = asprintf(&tmp_path, "%s/link/config/loopback", base_path);
+	if (rc > 0) {
+		copy_data_from_file(tmp_path, cd->link_loopback);
+		free(tmp_path);
+	}
+
+	if (is_c1)
 		rc = asprintf(&tmp_path, "%s/pause", base_path);
-		if (rc > 0) {
-			fp = fopen(tmp_path, "r");
-			if (fp) {
-				if (fgets(buf, MAX_LEN, fp)) {
-					snprintf(cd->tx_pause_state, MAX_LEN, "%s", buf);
-					snprintf(cd->rx_pause_state, MAX_LEN, "%s", buf);
-				}
-				fclose(fp);
-			}
+	else
+		rc = asprintf(&tmp_path, "%s/link/config/pause", base_path);
+	if (rc > 0) {
+		if (copy_data_from_file(tmp_path, buf) == 0) {
+			snprintf(cd->tx_pause_state, MAX_LEN, "%s", buf);
+			snprintf(cd->rx_pause_state, MAX_LEN, "%s", buf);
 		}
 		free(tmp_path);
 	}
