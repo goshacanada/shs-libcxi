@@ -1,0 +1,6 @@
+*       @hpe/hpc-shs-ss11-codereviewers  @hpe/hpc-shs-libcxi-codereviewers
+Jenkinsfile* @hpe/hpc-shs-cassini-enablement
+run.*	@hpe/hpc-shs-cassini-enablement
+build.sh	@hpe/hpc-shs-cassini-enablement
+*.spec @hpe/hpc-shs-cassini-enablement
+runBuildPrep.sh @hpe/hpc-shs-cassini-enablement
