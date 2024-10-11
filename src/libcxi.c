@@ -362,6 +362,46 @@ int cxil_destroy_svc(struct cxil_dev *dev_in, unsigned int svc_id)
 
 	return rc;
 }
+
+/* Update a CXI Service with LNIs per RGID */
+CXIL_API int cxil_set_svc_lpr(struct cxil_dev *dev_in, unsigned int svc_id,
+			      unsigned int lnis_per_rgid)
+{
+	struct cxil_dev_priv *dev = (struct cxil_dev_priv *) dev_in;
+	struct cxi_svc_lpr_cmd cmd = {
+		.op = CXI_OP_SVC_SET_LPR,
+		.svc_id = svc_id,
+		.lnis_per_rgid = lnis_per_rgid,
+	};
+
+	if (!dev_in)
+		return -EINVAL;
+
+	return device_write(dev, &cmd, sizeof(cmd));
+}
+
+/* Get the LNIs per RGID of a CXI Service */
+CXIL_API int cxil_get_svc_lpr(struct cxil_dev *dev_in, unsigned int svc_id)
+{
+	int rc;
+	struct cxil_dev_priv *dev = (struct cxil_dev_priv *) dev_in;
+	struct cxi_svc_get_value_resp resp = {};
+	struct cxi_svc_lpr_cmd cmd = {
+		.op = CXI_OP_SVC_GET_LPR,
+		.svc_id = svc_id,
+		.resp = &resp,
+	};
+
+	if (!dev_in)
+		return -EINVAL;
+
+	rc = device_write(dev, &cmd, sizeof(cmd));
+	if (rc < 0)
+		return rc;
+
+	return resp.value;
+}
+
 /* Allocate a CXI LNI */
 CXIL_API int cxil_alloc_lni(struct cxil_dev *dev_in, struct cxil_lni **lni,
 			    unsigned int svc_id)

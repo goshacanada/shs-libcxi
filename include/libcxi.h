@@ -304,6 +304,34 @@ CXIL_API int cxil_alloc_svc(struct cxil_dev *dev,
 CXIL_API int cxil_destroy_svc(struct cxil_dev *dev, unsigned int svc_id);
 
 /**
+ * @brief Sets lnis_per_rgid (lpr) of a service.
+ *
+ * @param dev The CXI Device
+ * @param svc_id The ID returned from cxil_svc_alloc
+ * @param lnis_per_rgid Number of processes per resource group (Cassini RGID)
+ *
+ * @return On success, zero is returned and the lnis_per_rgid will be set
+ *         in the service indicated by the svc_id. Otherwise, a negative
+ *         errno value is returned indicating the error.
+ *
+ */
+CXIL_API int cxil_set_svc_lpr(struct cxil_dev *dev, unsigned int svc_id,
+			      unsigned int lnis_per_rgid);
+
+/**
+ * @brief Gets lnis_per_rgid (lpr) of a service.
+ *
+ * @param dev The CXI Device
+ * @param svc_id The ID returned from cxil_svc_alloc
+ * @param lnis_per_rgid Number of processes per resource group (Cassini RGID)
+ *
+ * @return On success, lpr of the indicated svc_id is returned.
+ *         Otherwise, a negative errno value is returned indicating the error.
+ *
+ */
+CXIL_API int cxil_get_svc_lpr(struct cxil_dev *dev, unsigned int svc_id);
+
+/**
  * @brief Allocates a CXI LNI (Logical Network Interface) object.  An LNI is a
  *        logical group of hardware resources on a single network device which
  *        belong to a single process.

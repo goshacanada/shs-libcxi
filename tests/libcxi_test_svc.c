@@ -190,6 +190,11 @@ Test(svc, svc_update)
 	cr_assert_eq(rc, 0, "cxil_update_svc(): Failed with rc: %d.(enable) Expected Success!",
 		     rc);
 
+	/* Updating lnis_per_rgid should work */
+	rc = cxil_set_svc_lpr(dev, svc_id, 2);
+	cr_assert_eq(rc, 0, "cxil_set_svc_lpr(): Failed with rc: %d. Expected Success!",
+		     rc);
+
 	/* Compare our descriptor with Kernel's view of descriptor */
 	rc = cxil_get_svc(dev, svc_desc.svc_id, &comp_desc);
 	cr_assert_eq(rc, 0, "cxil_get_svc(): Failed with rc: %d. Expected Success!",
@@ -778,6 +783,12 @@ Test(svc, svc_demo)
 
 	printf("Found %d services\n", list->count);
 	for (i = 0; i < list->count; i++) {
+		rc = cxil_get_svc_lpr(dev, list->descs[i].svc_id);
+		cr_assert_geq(rc, 1, "cxil_get_svc_lpr(): Failed with rc: %d. Expected Success!",
+			     rc);
+
+		printf("svc:%d LNIs/RGID:%d\n", i, rc);
+
 		if (!list->descs[i].is_system_svc)
 			continue;
 

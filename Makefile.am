@@ -202,6 +202,7 @@ tests_libcxi_test_SOURCES = \
 	tests/libcxi_gpu_cuda.c \
 	tests/libcxi_gpu_ze.c \
 	tests/map.c \
+	tests/rgid.c \
 	tests/rma.c \
 	tests/atomic.c \
 	tests/msg.c \

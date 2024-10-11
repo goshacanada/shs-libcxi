@@ -51,6 +51,7 @@ struct util_opts {
 	bool verbose;
 	bool dry_run;
 	int enable;
+	int lnis_per_rgid;
 	struct cxil_dev *dev;
 	enum cmd_type cmd;
 	char *yaml_file;
@@ -248,9 +249,16 @@ static void print_descriptor(struct cxi_svc_desc *desc,
 			     struct cxi_rsrc_use *rsrc_use,
 			     struct util_opts *opts)
 {
+	int lpr = cxil_get_svc_lpr(opts->dev, desc->svc_id);
+
+	if (lpr < 0)
+		errx(1, "Couldn't get lnis_per_rgid for descriptor: %d",
+		     desc->svc_id);
+
 	printf(" --------------------------\n");
 	printf(" ID: %u%s\n", desc->svc_id,
 	       (desc->svc_id == CXI_DEFAULT_SVC_ID) ? " (DEFAULT)" : "");
+	printf("   LNIs/RGID          : %u\n", lpr);
 	printf("   Enabled            : %s\n",
 	       desc->enable ? "Yes" : "No");
 	printf("   System Service     : %s\n",
@@ -273,6 +281,7 @@ static void print_descriptor(struct cxi_svc_desc *desc,
 
 	printf("   Resource Limits    : %s\n",
 	       desc->resource_limits ? "Yes" : "No");
+
 	if (opts->verbose && rsrc_use)
 		list_resource_limits(desc, rsrc_use);
 }
@@ -602,7 +611,16 @@ static void update_service(struct cxi_svc_desc *desc,
 	struct cxi_svc_desc new_desc;
 	struct cxi_rsrc_use rsrc_use = {}; /* Todo could report the real deal */
 
-	if (opts->cmd == CMD_UPDATE) {
+	if (opts->lnis_per_rgid) {
+		if (!opts->dry_run) {
+			rc = cxil_set_svc_lpr(opts->dev, desc->svc_id,
+					      opts->lnis_per_rgid);
+			if (rc)
+				errx(1, "Failed to set lnis_per_rgid: %s\n",
+				     strerror(-rc));
+			return;
+		}
+	} else if (opts->cmd == CMD_UPDATE) {
 		desc_from_yaml(&new_desc, opts);
 
 		/* Updating resource_limits is not supported. For now always
@@ -663,7 +681,7 @@ int main(int argc, char *argv[])
 
 	while (1) {
 		int option_index = 0;
-		int c = getopt_long(argc, argv, "hvd:s:y:V", long_options,
+		int c = getopt_long(argc, argv, "hvd:l:s:y:V", long_options,
 				    &option_index);
 
 		if (c == -1)
@@ -688,6 +706,15 @@ int main(int argc, char *argv[])
 			    tmp < 0 || tmp > INT_MAX)
 				errx(1, "Invalid device name: cxi%s", optarg);
 			opts.dev_id = tmp;
+			break;
+		case 'l':
+			errno = 0;
+			endptr = NULL;
+			tmp = strtol(optarg, &endptr, 10);
+			if (errno != 0 || *endptr != 0 || endptr == optarg ||
+			    tmp < 1 || tmp > INT_MAX)
+				errx(1, "Invalid svc_id: %s", optarg);
+			opts.lnis_per_rgid = tmp;
 			break;
 		case 'D':
 			opts.dry_run = true;
@@ -753,7 +780,7 @@ int main(int argc, char *argv[])
 	if (opts.cmd == CMD_DISABLE && !opts.svc_id)
 		errx(1, "Disable command requires -s / --svc_id");
 	if (opts.cmd == CMD_UPDATE) {
-		if (!opts.yaml_file)
+		if (!opts.yaml_file && !opts.lnis_per_rgid)
 			errx(1, "Update command requires -y / --yaml_file");
 		if (!opts.svc_id)
 			errx(1, "Update command requires -s / --svc_id");
