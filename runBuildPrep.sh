@@ -6,6 +6,7 @@ if [[ -v SHS_NEW_BUILD_SYSTEM ]]; then
   . ${CE_INCLUDE_PATH}/buildprep-common.sh
 
   replace_release_metadata "cray-libcxi.spec"
+  install_dependencies "cray-libcxi.spec"
 else
 
 set -ex
