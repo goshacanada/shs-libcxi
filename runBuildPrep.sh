@@ -16,7 +16,7 @@ OS_TYPE=`cat /etc/os-release | grep "^ID=" | sed "s/\"//g" | cut -d "=" -f 2`
 OS_VERSION=`cat /etc/os-release | grep "^VERSION_ID=" | sed "s/\"//g" | cut -d "=" -f 2`
 #PRODUCT=${PRODUCT:-"slingshot-host-software"}
 
-RHEL_GPU_SUPPORTED_VERSIONS="8.9 8.10 9.4"
+RHEL_GPU_SUPPORTED_VERSIONS="8.10 9.4"
 
 echo "$0: --> BRANCH_NAME: '${BRANCH_NAME}'"
 echo "$0: --> PRODUCT: '${PRODUCT}'"
@@ -39,8 +39,6 @@ else
 fi
 
 case "${OBS_TARGET_OS}" in
-    sle15_sp4_*)    GPU_BRANCH='release/cos-2.5' ;;
-    cos_2_5_*)      GPU_BRANCH='release/cos-2.5' ;;
     csm_1_4_*)      GPU_BRANCH='release/cos-2.5' ;;
     cos_3_1_*)      GPU_BRANCH='release/uss-1.1' ;;
     csm_1_5_*)      GPU_BRANCH='release/uss-1.1' ;;
@@ -81,10 +79,6 @@ if command -v yum > /dev/null; then
         fi
 
         case $OS_VERSION in
-            8.9)
-                ROCM_VERSION="6.0"
-                NVIDIA_VERSION="23.11"
-                ;;
             8.10)
                 ROCM_VERSION="6.1"
                 NVIDIA_VERSION="24.3"
@@ -174,12 +168,6 @@ elif command -v zypper > /dev/null; then
     fi
 
     case "${OBS_TARGET_OS}" in
-        sle15_sp4_*)    NVIDIA_RPMS="nvhpc-2023"
-                        AMD_RPMS="hip-devel"
-                    ;;
-        cos_2_5_*)      NVIDIA_RPMS="nvhpc-2023"
-                        AMD_RPMS="hip-devel"
-                    ;;
         csm_1_4_*)      NVIDIA_RPMS="nvhpc-2023"
                         AMD_RPMS="hip-devel"
                     ;;
@@ -207,9 +195,6 @@ elif command -v zypper > /dev/null; then
     esac
 
     case ${TARGET_OS} in
-        # sles15 sp4 has reached end of support so we are using sp5 packages.
-        sle15_sp4_*)        SLE_VERSION="15.5"
-                    ;;
         sle15_sp5_*)        SLE_VERSION="15.5"
                     ;;
         sle15_sp6_*)        SLE_VERSION="15.6"
