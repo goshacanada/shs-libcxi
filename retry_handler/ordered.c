@@ -927,16 +927,6 @@ void new_status_for_spt(struct retry_handler *rh,
 				  spt_in->ram1.sct_idx);
 			rh->sct_state[spt_in->ram1.sct_idx].pending_timeout = false;
 		}
-
-		/* SCTs which have C_RC_NO_MATCHING_CONN may have a lot of
-		 * useless packets queued up. To efficiently cancel these
-		 * packets, OXE needs to be able to send out lots of packets.
-		 */
-		increase_inflight_ordered_packets(rh,
-						  "inflight order packet timer");
-		timer_del(&rh->reset_inflight_ordered_packet_timer);
-		timer_add(rh, &rh->reset_inflight_ordered_packet_timer,
-			  &reset_inflight_ordered_packet_time);
 	}
 
 	/* Find the existing SCT in the tree, or create a new one */

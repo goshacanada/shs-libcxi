@@ -338,19 +338,6 @@ int read_config(const char *filename, struct retry_handler *rh)
 		sct_stable_wait_time.tv_sec = y;
 	}
 
-	settings = config_lookup(&cfg, "reset_inflight_ordered_packet_time");
-	if (settings) {
-		dconf = config_setting_get_float(settings);
-		if (dconf <= 0 || dconf > 600) {
-			rh_printf(rh, LOG_ERR, "config error line %d, invalid \"reset_inflight_ordered_packet_time\" value %e\n",
-				  config_setting_source_line(settings), dconf);
-			rc = 1;
-			goto out;
-		}
-		reset_inflight_ordered_packet_time.tv_usec = modf(dconf, &y) * 1000000;
-		reset_inflight_ordered_packet_time.tv_sec = y;
-	}
-
 	settings = config_lookup(&cfg, "retry_intervals");
 	if (settings) {
 		array_size = config_setting_length(settings);

@@ -166,11 +166,6 @@ struct retry_handler {
 	/* Array of SMTs which have previously had messages cancelled. */
 	bool dead_smt[C_PCT_CFG_SMT_RAM0_ENTRIES];
 
-	/* Timer used to reset number of outstanding ordered packets. This is
-	 * used when NO_MATCHING_CONN NACKs happen to help drain the SCT faster.
-	 */
-	struct timer_list reset_inflight_ordered_packet_timer;
-
 	/* Used to increment or decrement log levels of each print statement without
 	 * having to change LogLevelMax and restarting the RH.
 	 */
@@ -441,7 +436,6 @@ extern struct timeval pause_wait_time;
 extern struct timeval cancel_spt_wait_time;
 extern struct timeval peer_tct_free_wait_time;
 extern struct timeval down_nid_wait_time;
-extern struct timeval reset_inflight_ordered_packet_time;
 extern struct timeval sct_stable_wait_time;
 extern char *rh_stats_dir;
 extern char *config_file;
@@ -548,9 +542,6 @@ static inline int sct_misc_info_csr(const struct retry_handler *rh,
 	else
 		return C2_PCT_CFG_SCT_MISC_INFO(sct_idx);
 }
-
-void increase_inflight_ordered_packets(struct retry_handler *rh,
-				       const char *reason);
 
 void rh_printf(const struct retry_handler *rh, unsigned int base_log_level,
 	       const char *fmt, ...)

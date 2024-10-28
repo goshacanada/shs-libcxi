@@ -110,11 +110,6 @@ struct timeval pause_wait_time = {
 /* Time to wait before taking a NID out of the parked list */
 struct timeval down_nid_wait_time = { .tv_sec = 64 };
 
-/* Time to wait before resetting inflight ordered packets after NO_MATCHING_CONN
- * NACKs.
- */
-struct timeval reset_inflight_ordered_packet_time = { .tv_sec = 10 };
-
 /* Time to wait before cheking SCT stability */
 struct timeval sct_stable_wait_time = { .tv_usec = 100000 };
 
@@ -918,56 +913,6 @@ void release_spt(struct retry_handler *rh, struct spt_entry *spt)
 	}
 }
 
-static void write_outstanding_limit(struct retry_handler *rh,
-				    unsigned int value)
-{
-	union c_oxe_cfg_outstanding_limit limit;
-
-
-	cxil_read_csr(rh->dev, C_OXE_CFG_OUTSTANDING_LIMIT(0), &limit,
-		      sizeof(limit));
-	limit.ioi_ord_limit = value;
-	cxil_write_csr(rh->dev, C_OXE_CFG_OUTSTANDING_LIMIT(0), &limit,
-		       sizeof(limit));
-}
-
-
-static void reset_inflight_ordered_packets(struct retry_handler *rh,
-					   const char *reason)
-{
-
-	/* The NID parked tree and the reset_inflight_ordered_packet_timer set
-	 * when NO_MATCHING_CONN NACKs occur both rely on increasing OXE ordered
-	 * packet limit to help drain SCT faster. This is only a temporary
-	 * increase and needs to be undone when the NID parked tree is empty and
-	 * the reset_inflight_ordered_packet_timer has expired.
-	 */
-
-	if (rh->nid_tree_count == 0 &&
-	    !timer_is_set(&rh->reset_inflight_ordered_packet_timer)) {
-		rh_printf(rh, LOG_DEBUG, "resetting outstanding packet out to %u due to %s\n",
-			  rh->default_ordered_put_limit, reason);
-		write_outstanding_limit(rh, rh->default_ordered_put_limit);
-	}
-}
-
-void increase_inflight_ordered_packets(struct retry_handler *rh,
-				       const char *reason)
-{
-	/* The NID parked tree and the reset_inflight_ordered_packet_timer set
-	 * when NO_MATCHING_CONN NACKs occur both rely on increasing OXE ordered
-	 * packet limit to help drain SCT faster. This is only a temporary
-	 * increase and needs to be undone when the NID parked tree is empty and
-	 * the reset_inflight_ordered_packet_timer has expired.
-	 */
-	if (rh->nid_tree_count == 0 &&
-	    !timer_is_set(&rh->reset_inflight_ordered_packet_timer)) {
-		rh_printf(rh, LOG_DEBUG, "setting outstanding packet out to %u due to %s\n",
-			  ORDERED_PUT_LIMIT_MAX, reason);
-		write_outstanding_limit(rh, ORDERED_PUT_LIMIT_MAX);
-	}
-}
-
 void release_nid(struct retry_handler *rh, struct nid_node *node)
 {
 	/* Feature is disabled - do nothing */
@@ -983,7 +928,6 @@ void release_nid(struct retry_handler *rh, struct nid_node *node)
 	free(node);
 
 	rh->nid_tree_count--;
-	reset_inflight_ordered_packets(rh, "NID parked list");
 }
 
 void timeout_release_nid(struct retry_handler *rh, struct timer_list *entry)
@@ -1030,7 +974,6 @@ void nid_tree_insert(struct retry_handler *rh, uint32_t nid)
 	rh_printf(rh, LOG_WARNING, "Adding nid=%d (mac=%s) to parked list\n",
 		  node->nid, nid_to_mac(node->nid));
 
-	increase_inflight_ordered_packets(rh, "NID parked list");
 	rh->nid_tree_count++;
 }
 
@@ -1874,16 +1817,6 @@ void fatal(struct retry_handler *rh, const char *fmt, ...)
 	va_end(ap);
 }
 
-/* Timer used to reset the number of ordered packets outstanding from OXE. This
- * is mainly used when SCTs start seeing NO_MATCHING_CONN NACKs to help drain
- * the SCT faster.
- */
-static void reset_inflight_ordered_packet_timer(struct retry_handler *rh,
-						struct timer_list *entry)
-{
-	reset_inflight_ordered_packets(rh, "inflight order packet timer");
-}
-
 
 /* Function called when exiting */
 /* TODO: this only works when there is one device. It may need a list
@@ -2010,10 +1943,6 @@ static int start_rh(struct retry_handler *rh, unsigned int dev_id)
 	rh->default_ordered_put_limit = limit.ioi_ord_limit;
 	rh->nid_tree_count = 0;
 
-	init_list_head(&rh->reset_inflight_ordered_packet_timer.list);
-	rh->reset_inflight_ordered_packet_timer.func =
-		reset_inflight_ordered_packet_timer;
-
 	/* Print additional information from config */
 	rh_printf(rh, LOG_WARNING, "max_fabric_packet_age (usecs) (%u)\n",
 		  max_fabric_packet_age);
@@ -2044,9 +1973,6 @@ static int start_rh(struct retry_handler *rh, unsigned int dev_id)
 	rh_printf(rh, LOG_WARNING, "down_nid_wait_time (%lu.%06lus)\n",
 		  down_nid_wait_time.tv_sec,
 		  down_nid_wait_time.tv_usec);
-	rh_printf(rh, LOG_WARNING, "reset_inflight_ordered_packet_time (%lu.%06lus)\n",
-		  reset_inflight_ordered_packet_time.tv_sec,
-		  reset_inflight_ordered_packet_time.tv_usec);
 
 	exit_rh = rh;
 	atexit(exit_fn);

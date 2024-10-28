@@ -109,7 +109,6 @@ static int stats_readdir(const char *path, void *buffer,
 		filler(buffer, "cancel_spt_wait_time", NULL, 0);
 		filler(buffer, "peer_tct_free_wait_time", NULL, 0);
 		filler(buffer, "down_nid_wait_time", NULL, 0);
-		filler(buffer, "reset_inflight_ordered_packet_time", NULL, 0);
 		filler(buffer, "log_increment", NULL, 0);
 	}
 
@@ -252,8 +251,6 @@ static int stats_read(const char *path, char *buffer, size_t size,
 		value = peer_tct_free_wait_time.tv_sec;
 	} else if (!strcmp(path, "/config/down_nid_wait_time")) {
 		value = down_nid_wait_time.tv_sec;
-	} else if (!strcmp(path, "/config/reset_inflight_ordered_packet_time")) {
-		value = reset_inflight_ordered_packet_time.tv_sec;
 	} else if (!strcmp(path, "/config/log_increment")) {
 		value = fs_rh->log_increment;
 	} else {
