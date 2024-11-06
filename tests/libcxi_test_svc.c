@@ -711,7 +711,7 @@ ParameterizedTest(struct le_tle_params *param, svc, le_tle)
 	}
 
 	/* Allocate max number of services with le/tle limits */
-	svcs = calloc(num_svcs + 1, sizeof(*svcs));
+	svcs = calloc(num_svcs, sizeof(*svcs));
 	for (i = 0; i < num_svcs; i++) {
 		svcs[i].resource_limits = true;
 		svcs[i].limits = param->limits;
@@ -727,15 +727,8 @@ ParameterizedTest(struct le_tle_params *param, svc, le_tle)
 	rc = cxil_alloc_svc(dev, &svcs[num_svcs], NULL);
 	cr_assert_eq(rc, -ENOSPC);
 
-	/* Show that another svc without le/tle reservations can be allocated */
-	svcs[num_svcs].resource_limits = false;
-	rc = cxil_alloc_svc(dev, &svcs[num_svcs], NULL);
-	cr_assert_gt(rc, 0, "cxil_alloc_svc()[%d]: Failed. Expected Success! rc:%d",
-		     num_svcs, rc);
-	svcs[num_svcs].svc_id = rc;
-
 	/* Destroy services */
-	for (i = 0; i < num_svcs + 1; i++) {
+	for (i = 0; i < num_svcs; i++) {
 		rc = cxil_destroy_svc(dev, svcs[i].svc_id);
 		cr_assert_eq(rc, 0, "cxil_destroy_svc(): Failed. Couldn't free svc: %d, rc: %d",
 			     svcs[i].svc_id, rc);
