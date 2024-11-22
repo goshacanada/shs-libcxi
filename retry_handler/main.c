@@ -1460,23 +1460,11 @@ static void complete_ordered(struct retry_handler *rh,
 	if (sct->batch_size && sct->batch_size < max_batch_size)
 		sct->batch_size++;
 
-	if (sct->backoff_to_in_chain + sct->backoff_nack_only_in_chain > 0) {
-		/* If there are only NACKs in the batch immediately reset backoff */
-		if (!sct->to_pkts_in_batch) {
-			rh_printf(rh, LOG_DEBUG, "spt=%u (sct=%u) got a retry completion. NACK only SCT. resetting nack retries count to 0\n",
-				  spt->spt_idx, sct->sct_idx);
-			sct->backoff_nack_only_in_chain = 0;
-		/* If there are timeouts in the batch only reset the backoff
-		 * once we get a completion for the final timeout in the batch
-		 */
-		} else if (sct->to_pkts_in_batch &&
-			   sct->batch_last_timeout == spt->spt_idx) {
-			rh_printf(rh, LOG_DEBUG, "spt=%u (batch_last_timeout, sct=%u) got a retry completion, resetting retries count to 0\n",
-				  spt->spt_idx, sct->sct_idx);
-			sct->backoff_to_in_chain = 0;
-			sct->backoff_nack_only_in_chain = 0;
-		}
-	}
+	/* Reset backoff timeout and NACK counts when forward progress is
+	 * made.
+	 */
+	sct->backoff_to_in_chain = 0;
+	sct->backoff_nack_only_in_chain = 0;
 
 	check_sct_status(rh, sct, false);
 }
