@@ -260,6 +260,8 @@ static void schedule_retry_sct(struct retry_handler *rh,
 	unsigned int random_usec;
 	unsigned int backoff_usec_val;
 	unsigned int bit_shift_count;
+	int i;
+
 	sct->timeout_list.func = timeout_check_sct;
 
 	/* Timeout packets are in chain */
@@ -285,10 +287,15 @@ static void schedule_retry_sct(struct retry_handler *rh,
 		retry_sct(rh, sct);
 	} else {
 		/* Timeouts are in the chain - get retry timing from backoff array */
-		if (sct->num_to_pkts_in_chain)
-			usec = retry_interval_values_us[sct->backoff_to_in_chain - 1];
+		if (sct->num_to_pkts_in_chain) {
+			i = sct->backoff_to_in_chain - 1;
+			if (i >= MAX_SPT_RETRIES_LIMIT)
+				fatal(rh, "invalid backoff_to_in_chain value: %i\n", i);
+
+			usec = retry_interval_values_us[i];
+
 		/* Only NACKs in the chain - calculate exponential backoff */
-		else {
+		} else {
 			bit_shift_count = sct->backoff_nack_only_in_chain - nack_backoff_start;
 			/* Capping bit shift count to prevent overflow by bit shifting.
 			 * Assuming 32 bit U.
