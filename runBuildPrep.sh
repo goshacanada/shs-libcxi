@@ -16,7 +16,7 @@ OS_TYPE=`cat /etc/os-release | grep "^ID=" | sed "s/\"//g" | cut -d "=" -f 2`
 OS_VERSION=`cat /etc/os-release | grep "^VERSION_ID=" | sed "s/\"//g" | cut -d "=" -f 2`
 #PRODUCT=${PRODUCT:-"slingshot-host-software"}
 
-RHEL_GPU_SUPPORTED_VERSIONS="8.10 9.4"
+RHEL_GPU_SUPPORTED_VERSIONS="8.10 9.4 9.5"
 
 echo "$0: --> BRANCH_NAME: '${BRANCH_NAME}'"
 echo "$0: --> PRODUCT: '${PRODUCT}'"
@@ -87,6 +87,10 @@ if command -v yum > /dev/null; then
                 ROCM_VERSION="6.1"
                 NVIDIA_VERSION="24.3"
                 ;;
+            9.5)
+                ROCM_VERSION="6.3"
+                NVIDIA_VERSION="24.11"
+                ;;
             *)
                 echo "GPU software versions not defined for OS version \"${OS_VERSION}\""
                 exit 1
@@ -95,6 +99,9 @@ if command -v yum > /dev/null; then
         if [ $with_rocm -eq 1 ]; then
             if [[ $OS_VERSION =~ ^8\.[0-9]+ ]]; then
                 yum-config-manager --add-repo=${ARTI_URL}/radeon-rocm-remote/rhel8/${ROCM_VERSION}/main
+            elif [[ $OS_VERSION =~ 9.5 ]]; then
+                yum-config-manager --add-repo=${ARTI_URL}/uss-internal-third-party-rpm-local/rocm/dev/master/rhel_9_5/
+                ## Update URL to radeon-rocm-remote when available.
             elif [[ $OS_VERSION =~ ^9\.[0-9]+ ]]; then
                 yum-config-manager --add-repo=${ARTI_URL}/radeon-rocm-remote/rhel9/${ROCM_VERSION}/main
             else
