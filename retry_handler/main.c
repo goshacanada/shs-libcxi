@@ -103,7 +103,7 @@ struct timeval pause_wait_time = {
 };
 
 /* Time to wait before taking a NID out of the parked list */
-struct timeval down_nid_wait_time = { .tv_sec = 64 };
+struct timeval down_nid_wait_time = { .tv_sec = 96 };
 
 /* Time to wait before cheking SCT stability */
 struct timeval sct_stable_wait_time = { .tv_usec = 100000 };
