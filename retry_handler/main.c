@@ -108,6 +108,9 @@ struct timeval down_nid_wait_time = { .tv_sec = 64 };
 /* Time to wait before cheking SCT stability */
 struct timeval sct_stable_wait_time = { .tv_usec = 100000 };
 
+static unsigned int default_spt_timeout_epoch;
+unsigned int down_nid_spt_timeout_epoch = 22;
+
 /**
  * Compare two DFA NIDs
  * @return Negative value, 0, or Positive value as nid1 is <, == or > nid2
@@ -908,6 +911,24 @@ void release_spt(struct retry_handler *rh, struct spt_entry *spt)
 	}
 }
 
+static void modify_spt_timeout(struct retry_handler *rh, int spt_timeout_epoch)
+{
+	union c_pct_cfg_timing pct_cfg_timing;
+	int cur_spt_timeout_epoch;
+
+	cxil_read_csr(rh->dev, C_PCT_CFG_TIMING, &pct_cfg_timing,
+		      sizeof(pct_cfg_timing));
+
+	cur_spt_timeout_epoch = pct_cfg_timing.spt_timeout_epoch_sel;
+	pct_cfg_timing.spt_timeout_epoch_sel = spt_timeout_epoch;
+
+	cxil_write_csr(rh->dev, C_PCT_CFG_TIMING, &pct_cfg_timing,
+		       sizeof(pct_cfg_timing));
+
+	rh_printf(rh, LOG_DEBUG, "SPT timeout change from %d to %d\n",
+		  cur_spt_timeout_epoch, spt_timeout_epoch);
+}
+
 void release_nid(struct retry_handler *rh, struct nid_node *node)
 {
 	/* Feature is disabled - do nothing */
@@ -923,6 +944,9 @@ void release_nid(struct retry_handler *rh, struct nid_node *node)
 	free(node);
 
 	rh->nid_tree_count--;
+
+	if (rh->nid_tree_count == 0)
+		modify_spt_timeout(rh, default_spt_timeout_epoch);
 }
 
 void timeout_release_nid(struct retry_handler *rh, struct timer_list *entry)
@@ -968,6 +992,9 @@ void nid_tree_insert(struct retry_handler *rh, uint32_t nid)
 		fatal(rh, "NID was already in tree when it isn't expected to be\n");
 	rh_printf(rh, LOG_WARNING, "Adding nid=%d (mac=%s) to parked list\n",
 		  node->nid, nid_to_mac(node->nid));
+
+	if (rh->nid_tree_count == 0)
+		modify_spt_timeout(rh, down_nid_spt_timeout_epoch);
 
 	rh->nid_tree_count++;
 }
@@ -1643,7 +1670,7 @@ void setup_timing(struct retry_handler *rh)
 	/* Assume we'll write back the driver defaults in case some garbage
 	 * values have been left behind on the system
 	 */
-	pct_cfg_timing.spt_timeout_epoch_sel = C1_DEFAULT_SPT_TIMEOUT_EPOCH;
+	default_spt_timeout_epoch = C1_DEFAULT_SPT_TIMEOUT_EPOCH;
 	pct_cfg_timing.sct_idle_epoch_sel = C1_DEFAULT_SCT_IDLE_EPOCH;
 	pct_cfg_timing.sct_close_epoch_sel = C1_DEFAULT_SCT_CLOSE_EPOCH;
 	pct_cfg_timing.tct_timeout_epoch_sel = C1_DEFAULT_TCT_TIMEOUT_EPOCH;
@@ -1653,8 +1680,10 @@ void setup_timing(struct retry_handler *rh)
 		rh_printf(rh, LOG_WARNING, "CAUTION. Using spt_timeout_epoch: %u instead of default: %u\n",
 		       user_spt_timeout_epoch,
 		       pct_cfg_timing.spt_timeout_epoch_sel);
-		pct_cfg_timing.spt_timeout_epoch_sel = user_spt_timeout_epoch;
+		default_spt_timeout_epoch = user_spt_timeout_epoch;
 	}
+	pct_cfg_timing.spt_timeout_epoch_sel = default_spt_timeout_epoch;
+
 	if (user_sct_idle_epoch &&
 	    user_sct_idle_epoch != C1_DEFAULT_SCT_IDLE_EPOCH) {
 		rh_printf(rh, LOG_WARNING, "CAUTION. Using sct_idle_epoch: %u instead of default: %u\n",
@@ -1682,12 +1711,14 @@ void setup_timing(struct retry_handler *rh)
 
 	/* Estimate PCT Timeout Epochs */
 	rh_printf(rh, LOG_WARNING, "pct_cfg_timing estimates\n");
-	epoch_us = get_epoch_timeout(rh,
-			pct_cfg_timing.spt_timeout_epoch_sel);
+	epoch_us = get_epoch_timeout(rh, default_spt_timeout_epoch);
 	rh_printf(rh, LOG_WARNING, "spt_timeout_epoch_sel(%d) ~ %u us\n",
-		  pct_cfg_timing.spt_timeout_epoch_sel,
-		  epoch_us);
+		  default_spt_timeout_epoch, epoch_us);
 	rh->spt_timeout_us = epoch_us;
+
+	epoch_us = get_epoch_timeout(rh, down_nid_spt_timeout_epoch);
+	rh_printf(rh, LOG_WARNING, "down_nid_spt_timeout_epoch(%d) ~ %u us\n",
+		  down_nid_spt_timeout_epoch, epoch_us);
 
 	epoch_us = get_epoch_timeout(rh,
 			pct_cfg_timing.sct_idle_epoch_sel);

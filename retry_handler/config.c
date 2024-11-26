@@ -297,6 +297,22 @@ int read_config(const char *filename, struct retry_handler *rh)
 		down_nid_wait_time.tv_sec = y;
 	}
 
+	settings = config_lookup(&cfg, "down_nid_spt_timeout_epoch");
+	if (settings) {
+		intconf = config_setting_get_int(settings);
+		if (intconf) {
+			if (intconf < 11 || intconf > 36) {
+				rh_printf(rh, LOG_ERR, "config error line %d, invalid \"down_nid_spt_timeout_epoch\" value %u\n",
+					  config_setting_source_line(settings),
+					  intconf);
+				rc = 1;
+				goto out;
+			}
+
+			down_nid_spt_timeout_epoch = intconf;
+		}
+	}
+
 	settings = config_lookup(&cfg, "sct_stable_wait_time");
 	if (settings) {
 		dconf = config_setting_get_float(settings);

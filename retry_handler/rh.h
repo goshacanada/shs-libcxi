@@ -436,6 +436,7 @@ extern struct timeval pause_wait_time;
 extern struct timeval cancel_spt_wait_time;
 extern struct timeval peer_tct_free_wait_time;
 extern struct timeval down_nid_wait_time;
+extern unsigned int down_nid_spt_timeout_epoch;
 extern struct timeval sct_stable_wait_time;
 extern char *rh_stats_dir;
 extern char *config_file;
