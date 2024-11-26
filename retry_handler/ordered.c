@@ -844,7 +844,7 @@ known:
 		    spt->ram2.sct_seqno == sct_state->seqno &&
 		    comp_cnt == sct_state->req_cnt) {
 			sct->cancel_spts = true;
-			sct->cancel_rc = C_RC_CANCELED;
+			sct->cancel_rc = C_RC_UNDELIVERABLE;
 			rh_printf(rh, LOG_WARNING,
 				  "will close sct=%u because it is pending a SCT timeout.\n",
 				  sct->sct_idx);
