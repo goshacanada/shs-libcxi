@@ -176,41 +176,13 @@ int read_config(const char *filename, struct retry_handler *rh)
 		backoff_multiplier = intconf;
 	}
 
-	/* To support deprecated timeout_backoff_factor.
-	 * Override the value of timeout_backoff_multiplier.
-	 */
 	settings = config_lookup(&cfg, "timeout_backoff_factor");
-	if (settings) {
-		intconf = config_setting_get_int(settings);
-		if (intconf < 1 || intconf > 6) {
-			rh_printf(rh, LOG_ERR, "config error line %d, invalid \"timeout_backoff_factor\" value %u\n",
-				  config_setting_source_line(settings), intconf);
-			rc = 1;
-			goto out;
-		}
-		rh_printf(rh, LOG_NOTICE, "timeout_backoff_factor is deprecated, use timeout_backoff_multiplier\n");
-		timeout_backoff_multiplier = intconf;
-		has_timeout_backoff_factor = true;
-	}
+	if (settings)
+		rh_printf(rh, LOG_NOTICE, "timeout_backoff_factor is deprecated, use retry_intervals\n");
 
 	settings = config_lookup(&cfg, "timeout_backoff_multiplier");
-	if (settings) {
-		intconf = config_setting_get_int(settings);
-		if (intconf < 1 || intconf > 6) {
-			rh_printf(rh, LOG_ERR, "config error line %d, invalid \"timeout_backoff_multiplier\" value %u\n",
-				  config_setting_source_line(settings), intconf);
-			rc = 1;
-			goto out;
-		}
-		if (has_timeout_backoff_factor) {
-			rh_printf(rh, LOG_ERR, "config error line %d, both \"timeout_backoff_multiplier\" value %u \
-				  and \"timeout_backoff_factor\" value %u are present. Use only one of them.\n",
-				  config_setting_source_line(settings), intconf, timeout_backoff_multiplier);
-			rc = 1;
-			goto out;
-		}
-		timeout_backoff_multiplier = intconf;
-	}
+	if (settings)
+		rh_printf(rh, LOG_NOTICE, "timeout_backoff_multiplier is deprecated, use retry_intervals\n");
 
 	settings = config_lookup(&cfg, "spt_timeout_epoch");
 	if (settings) {
@@ -357,9 +329,7 @@ int read_config(const char *filename, struct retry_handler *rh)
 				rc = 1;
 				goto out;
 			}
-			retry_interval_values_us[i] = intconf;
 		}
-		has_user_retry_interval_inputs = true;
 	}
 
 	settings = config_lookup(&cfg, "allowed_retry_time_percent");

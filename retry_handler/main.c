@@ -62,9 +62,6 @@ unsigned int max_batch_size = 4;
 /* Exponential backoff is multiplied by this value to increase delay between retries for nacks */
 unsigned int backoff_multiplier = 2;
 
-/* To increase delay between retries. Only used when timeouts occur */
-unsigned int timeout_backoff_multiplier = 2;
-
 /* Cap backoff factor to avoid overrruns when shifting */
 unsigned int max_backoff_factor = 60;
 
@@ -77,13 +74,11 @@ unsigned int user_sct_close_epoch;
 unsigned int user_tct_timeout_epoch;
 
 /* Retry interval values for the whole retry schedule */
-unsigned int retry_interval_values_us[MAX_SPT_RETRIES_LIMIT];
+unsigned int retry_interval_values_us[MAX_SPT_RETRIES_LIMIT] =
+	{0, 4000000, 8000000, 12000000};
 
 /* Max allowed retry time sum will be x% of tct timeout */
 unsigned int allowed_retry_time_percent = 90;
-
-/* Retry interval values are present in config */
-bool has_user_retry_interval_inputs;
 
 /* Deprecated timeout_backoff_factor is in config file */
 bool has_timeout_backoff_factor;
@@ -1641,9 +1636,6 @@ void setup_timing(struct retry_handler *rh)
 	unsigned int max_allowed_retry_time_us;
 	unsigned int retry_time_sum;
 	unsigned int i;
-	unsigned int usec;
-	unsigned int backoff_usec_val;
-	unsigned int bit_shift_count;
 
 	cxil_read_csr(rh->dev, C_PCT_CFG_TIMING,
 		      &pct_cfg_timing, sizeof(pct_cfg_timing));
@@ -1738,39 +1730,6 @@ void setup_timing(struct retry_handler *rh)
 		  rh->max_retry_interval_us);
 
 	max_allowed_retry_time_us = epoch_us * (allowed_retry_time_percent / 100.0);
-
-	/* If no config input for retry_intervals parameter, we need to assign default values. */
-	if (!has_user_retry_interval_inputs) {
-		/* If deprecated timeout_backoff_factor is available */
-		if (has_timeout_backoff_factor) {
-			/* The first retry wait time is 0, subsequent retries grow exponentially with
-			 * timeout_backoff_factor (assigned to timeout_backoff_multiplier),
-			 * base_retry_interval_us and backoff_multiplier.
-			 */
-			retry_interval_values_us[0] = 0;
-			for (i = 1; i < max_spt_retries; ++i) {
-				bit_shift_count = i * timeout_backoff_multiplier;
-				backoff_usec_val = 1U << (bit_shift_count < 32 ? bit_shift_count : 31);
-				usec = rh->base_retry_interval_us * backoff_multiplier *
-					(backoff_usec_val < rh->max_backoff_usec_val ?
-					backoff_usec_val : rh->max_backoff_usec_val);
-				retry_interval_values_us[i] = usec > rh->max_retry_interval_us ?
-											rh->max_retry_interval_us : usec;
-			}
-		} else {
-			/* The first retry wait time is 0, subsequent retries grow exponentially with timeout_backoff_multiplier.
-			 * The largest retry time will be at most max_retry_interval_us
-			 * Example: max_spt_retries = 4
-			 * timeout_backoff_multiplier = 2, retry_interval_values_us = 0, x/4, x/2, x
-			 * timeout_backoff_multiplier = 3, retry_interval_values_us = 0, x/9, x/3, x
-			 * timeout_backoff_multiplier = 4, retry_interval_values_us = 0, x/16, x/4, x
-			 */
-			retry_interval_values_us[0] = 0;
-			retry_interval_values_us[max_spt_retries - 1] = rh->max_retry_interval_us;
-			for (i = max_spt_retries - 2; i > 0; --i)
-				retry_interval_values_us[i] = retry_interval_values_us[i + 1] / timeout_backoff_multiplier;
-		}
-	}
 
 	retry_time_sum = 0;
 	for (i = 0; i < max_spt_retries; ++i) {
@@ -1946,8 +1905,6 @@ static int start_rh(struct retry_handler *rh, unsigned int dev_id)
 	rh_printf(rh, LOG_WARNING, "initial_batch_size (no_trs) (%u)\n",
 		  initial_batch_size);
 	rh_printf(rh, LOG_WARNING, "backoff_multiplier (%u)\n", backoff_multiplier);
-	rh_printf(rh, LOG_WARNING, "timeout_backoff_multiplier (%u)\n",
-		  timeout_backoff_multiplier);
 	rh_printf(rh, LOG_WARNING, "nack_backoff_start (%u)\n", nack_backoff_start);
 	rh_printf(rh, LOG_WARNING, "tct_wait_time  (%lu.%06lus)\n",
 		  tct_wait_time.tv_sec, tct_wait_time.tv_usec);
@@ -2141,7 +2098,7 @@ int main(int argc, char *argv[])
 	/* Developer Note: NETCASSINI-5042
 	 *
 	 * Stop executing recovery.
-	 * RH Crash requires a node reboot as NIC state is unknown after crash occurs 
+	 * RH Crash requires a node reboot as NIC state is unknown after crash occurs
 	 */
 	// recovery(&rh);
 

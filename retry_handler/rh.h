@@ -441,7 +441,6 @@ extern char *rh_stats_dir;
 extern char *config_file;
 extern unsigned int retry_interval_values_us[MAX_SPT_RETRIES_LIMIT];
 extern unsigned int allowed_retry_time_percent;
-extern bool has_user_retry_interval_inputs;
 extern bool has_timeout_backoff_factor;
 
 extern uv_loop_t *loop;

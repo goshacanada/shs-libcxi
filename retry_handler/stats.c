@@ -102,7 +102,6 @@ static int stats_readdir(const char *path, void *buffer,
 		filler(buffer, "max_batch_size", NULL, 0);
 		filler(buffer, "initial_batch_size", NULL, 0);
 		filler(buffer, "backoff_multiplier", NULL, 0);
-		filler(buffer, "timeout_backoff_multiplier", NULL, 0);
 		filler(buffer, "nack_backoff_start", NULL, 0);
 		filler(buffer, "tct_wait_time", NULL, 0);
 		filler(buffer, "pause_wait_time", NULL, 0);
@@ -237,8 +236,6 @@ static int stats_read(const char *path, char *buffer, size_t size,
 		value = initial_batch_size;
 	} else if (!strcmp(path, "/config/backoff_multiplier")) {
 		value = backoff_multiplier;
-	} else if (!strcmp(path, "/config/timeout_backoff_multiplier")) {
-		value = timeout_backoff_multiplier;
 	} else if (!strcmp(path, "/config/nack_backoff_start")) {
 		value = nack_backoff_start;
 	} else if (!strcmp(path, "/config/tct_wait_time")) {
