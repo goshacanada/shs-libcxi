@@ -562,8 +562,11 @@ static void cancel_spt(struct retry_handler *rh, struct spt_entry *spt)
 				nid = cxi_dfa_nid(sct->sct_cam.dfa);
 				rh_printf(rh, LOG_WARNING, "cancel completed for sct=%u (nid=%u, mac=%s)\n",
 					  sct->sct_idx, nid, nid_to_mac(nid));
-				timer_add(rh, &rh->sct_state[sct->sct_idx].timeout_list,
-					  &peer_tct_free_wait_time);
+
+				if (rh->sct_state[sct->sct_idx].pending_timeout)
+					timer_add(rh, &rh->sct_state[sct->sct_idx].timeout_list,
+						  &peer_tct_free_wait_time);
+
 				release_sct(rh, sct);
 				rh->stats.connections_cancelled++;
 			}
