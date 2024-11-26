@@ -111,6 +111,10 @@ struct timeval sct_stable_wait_time = { .tv_usec = 100000 };
 static unsigned int default_spt_timeout_epoch;
 unsigned int down_nid_spt_timeout_epoch = 22;
 
+/* Assumes only a single outstanding packet limit is used. */
+static unsigned int default_get_packets_inflight;
+unsigned int down_nid_get_packets_inflight = 128;
+
 /**
  * Compare two DFA NIDs
  * @return Negative value, 0, or Positive value as nid1 is <, == or > nid2
@@ -932,6 +936,17 @@ static void modify_spt_timeout(struct retry_handler *rh, int spt_timeout_epoch)
 		  cur_spt_timeout_epoch, spt_timeout_epoch);
 }
 
+static void modify_mcu_get_inflight(struct retry_handler *rh, int packets)
+{
+	union c_oxe_cfg_outstanding_limit limit;
+
+	cxil_read_csr(rh->dev, C_OXE_CFG_OUTSTANDING_LIMIT(0), &limit,
+		      sizeof(limit));
+	limit.get_limit = packets;
+	cxil_write_csr(rh->dev, C_OXE_CFG_OUTSTANDING_LIMIT(0), &limit,
+		       sizeof(limit));
+}
+
 void release_nid(struct retry_handler *rh, struct nid_node *node)
 {
 	/* Feature is disabled - do nothing */
@@ -948,8 +963,10 @@ void release_nid(struct retry_handler *rh, struct nid_node *node)
 
 	rh->nid_tree_count--;
 
-	if (rh->nid_tree_count == 0)
+	if (rh->nid_tree_count == 0) {
 		modify_spt_timeout(rh, default_spt_timeout_epoch);
+		modify_mcu_get_inflight(rh, default_get_packets_inflight);
+	}
 }
 
 void timeout_release_nid(struct retry_handler *rh, struct timer_list *entry)
@@ -996,8 +1013,10 @@ void nid_tree_insert(struct retry_handler *rh, uint32_t nid)
 	rh_printf(rh, LOG_WARNING, "Adding nid=%d (mac=%s) to parked list\n",
 		  node->nid, nid_to_mac(node->nid));
 
-	if (rh->nid_tree_count == 0)
+	if (rh->nid_tree_count == 0) {
 		modify_spt_timeout(rh, down_nid_spt_timeout_epoch);
+		modify_mcu_get_inflight(rh, down_nid_get_packets_inflight);
+	}
 
 	rh->nid_tree_count++;
 }
@@ -1921,10 +1940,13 @@ static int start_rh(struct retry_handler *rh, unsigned int dev_id)
 
 	cxil_read_csr(rh->dev, C_OXE_CFG_OUTSTANDING_LIMIT(0), &limit,
 		      sizeof(limit));
+	default_get_packets_inflight = limit.get_limit;
 	rh->default_ordered_put_limit = limit.ioi_ord_limit;
 	rh->nid_tree_count = 0;
 
 	/* Print additional information from config */
+	rh_printf(rh, LOG_WARNING, "down_nid_get_packets_inflight (%u)\n",
+		  down_nid_get_packets_inflight);
 	rh_printf(rh, LOG_WARNING, "max_fabric_packet_age (usecs) (%u)\n",
 		  max_fabric_packet_age);
 	rh_printf(rh, LOG_WARNING, "max_spt_retries (timeouts) (%u)\n",

@@ -313,6 +313,22 @@ int read_config(const char *filename, struct retry_handler *rh)
 		}
 	}
 
+	settings = config_lookup(&cfg, "down_nid_get_packets_inflight");
+	if (settings) {
+		intconf = config_setting_get_int(settings);
+		if (intconf) {
+			if (intconf < 1 || intconf > 2047) {
+				rh_printf(rh, LOG_ERR, "config error line %d, invalid \"down_nid_get_packets_inflight\" value %u\n",
+					  config_setting_source_line(settings),
+					  intconf);
+				rc = 1;
+				goto out;
+			}
+
+			down_nid_get_packets_inflight = intconf;
+		}
+	}
+
 	settings = config_lookup(&cfg, "sct_stable_wait_time");
 	if (settings) {
 		dconf = config_setting_get_float(settings);
