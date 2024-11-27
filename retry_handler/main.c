@@ -113,7 +113,11 @@ unsigned int down_nid_spt_timeout_epoch = 22;
 
 /* Assumes only a single outstanding packet limit is used. */
 static unsigned int default_get_packets_inflight;
+static unsigned int default_put_limit_inflight;
+static unsigned int default_ioi_ord_limit_inflight;
+static unsigned int default_ioi_unord_limit_inflight;
 unsigned int down_nid_get_packets_inflight = 128;
+unsigned int down_nid_put_packets_inflight = 128;
 
 /**
  * Compare two DFA NIDs
@@ -936,13 +940,17 @@ static void modify_spt_timeout(struct retry_handler *rh, int spt_timeout_epoch)
 		  cur_spt_timeout_epoch, spt_timeout_epoch);
 }
 
-static void modify_mcu_get_inflight(struct retry_handler *rh, int packets)
+static void modify_mcu_inflight(struct retry_handler *rh,
+				unsigned int get, unsigned int put,
+				unsigned int ioi_ord, unsigned int ioi_unord)
 {
-	union c_oxe_cfg_outstanding_limit limit;
+	union c_oxe_cfg_outstanding_limit limit = {
+		.get_limit = get,
+		.put_limit = put,
+		.ioi_ord_limit = ioi_ord,
+		.ioi_unord_limit = ioi_unord,
+	};
 
-	cxil_read_csr(rh->dev, C_OXE_CFG_OUTSTANDING_LIMIT(0), &limit,
-		      sizeof(limit));
-	limit.get_limit = packets;
 	cxil_write_csr(rh->dev, C_OXE_CFG_OUTSTANDING_LIMIT(0), &limit,
 		       sizeof(limit));
 }
@@ -965,7 +973,10 @@ void release_nid(struct retry_handler *rh, struct nid_node *node)
 
 	if (rh->nid_tree_count == 0) {
 		modify_spt_timeout(rh, default_spt_timeout_epoch);
-		modify_mcu_get_inflight(rh, default_get_packets_inflight);
+		modify_mcu_inflight(rh, default_get_packets_inflight,
+				    default_put_limit_inflight,
+				    default_ioi_ord_limit_inflight,
+				    default_ioi_unord_limit_inflight);
 	}
 }
 
@@ -1015,7 +1026,10 @@ void nid_tree_insert(struct retry_handler *rh, uint32_t nid)
 
 	if (rh->nid_tree_count == 0) {
 		modify_spt_timeout(rh, down_nid_spt_timeout_epoch);
-		modify_mcu_get_inflight(rh, down_nid_get_packets_inflight);
+		modify_mcu_inflight(rh, down_nid_get_packets_inflight,
+				    down_nid_put_packets_inflight,
+				    down_nid_put_packets_inflight,
+				    down_nid_put_packets_inflight);
 	}
 
 	rh->nid_tree_count++;
@@ -1941,12 +1955,17 @@ static int start_rh(struct retry_handler *rh, unsigned int dev_id)
 	cxil_read_csr(rh->dev, C_OXE_CFG_OUTSTANDING_LIMIT(0), &limit,
 		      sizeof(limit));
 	default_get_packets_inflight = limit.get_limit;
+	default_put_limit_inflight = limit.put_limit;
+	default_ioi_ord_limit_inflight = limit.ioi_ord_limit;
+	default_ioi_unord_limit_inflight = limit.ioi_unord_limit;
 
 	rh->nid_tree_count = 0;
 
 	/* Print additional information from config */
 	rh_printf(rh, LOG_WARNING, "down_nid_get_packets_inflight (%u)\n",
 		  down_nid_get_packets_inflight);
+	rh_printf(rh, LOG_WARNING, "down_nid_put_packets_inflight (%u)\n",
+		  down_nid_put_packets_inflight);
 	rh_printf(rh, LOG_WARNING, "max_fabric_packet_age (usecs) (%u)\n",
 		  max_fabric_packet_age);
 	rh_printf(rh, LOG_WARNING, "max_spt_retries (timeouts) (%u)\n",
