@@ -90,9 +90,6 @@ struct retry_handler {
 	/* Count of number of NIDs in parked/down tree. */
 	unsigned int nid_tree_count;
 
-	/* Default ordered put shaping limit. */
-	unsigned int default_ordered_put_limit;
-
 	/* Semi permanent storage for the TRS CAM entries. These
 	 * should be refreshed on demand.
 	 *

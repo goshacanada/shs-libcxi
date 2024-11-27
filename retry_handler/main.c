@@ -1941,7 +1941,7 @@ static int start_rh(struct retry_handler *rh, unsigned int dev_id)
 	cxil_read_csr(rh->dev, C_OXE_CFG_OUTSTANDING_LIMIT(0), &limit,
 		      sizeof(limit));
 	default_get_packets_inflight = limit.get_limit;
-	rh->default_ordered_put_limit = limit.ioi_ord_limit;
+
 	rh->nid_tree_count = 0;
 
 	/* Print additional information from config */
