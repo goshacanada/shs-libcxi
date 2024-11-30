@@ -2043,10 +2043,20 @@ static void signal_cb(uv_signal_t *handle, int signum)
 	struct retry_handler *rh = handle->data;
 
 	if (signum == SIGINT) {
+		modify_spt_timeout(rh, default_spt_timeout_epoch);
+		modify_mcu_inflight(rh, default_get_packets_inflight,
+				    default_put_limit_inflight,
+				    default_ioi_ord_limit_inflight,
+				    default_ioi_unord_limit_inflight);
 		rh_printf(rh, LOG_ALERT, "got SIGINT\n");
 		uv_stop(loop);
 		exit(0);
 	} else if (signum == SIGTERM) {
+		modify_spt_timeout(rh, default_spt_timeout_epoch);
+		modify_mcu_inflight(rh, default_get_packets_inflight,
+				    default_put_limit_inflight,
+				    default_ioi_ord_limit_inflight,
+				    default_ioi_unord_limit_inflight);
 		rh_printf(rh, LOG_ALERT, "got SIGTERM\n");
 		uv_stop(loop);
 		exit(0);
