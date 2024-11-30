@@ -2045,9 +2045,11 @@ static void signal_cb(uv_signal_t *handle, int signum)
 	if (signum == SIGINT) {
 		rh_printf(rh, LOG_ALERT, "got SIGINT\n");
 		uv_stop(loop);
+		exit(0);
 	} else if (signum == SIGTERM) {
 		rh_printf(rh, LOG_ALERT, "got SIGTERM\n");
 		uv_stop(loop);
+		exit(0);
 	} else if (signum == SIGHUP) {
 		rh_printf(rh, LOG_WARNING, "got SIGHUP\n");
 		dump_rh_state(rh);
@@ -2161,9 +2163,11 @@ int main(int argc, char *argv[])
 	timer_watcher.data = &rh;
 
 	uv_signal_init(loop, &sigint_watcher);
+	sigint_watcher.data = &rh;
 	uv_signal_start(&sigint_watcher, signal_cb, SIGINT);
 
 	uv_signal_init(loop, &sigterm_watcher);
+	sigterm_watcher.data = &rh;
 	uv_signal_start(&sigterm_watcher, signal_cb, SIGTERM);
 
 	uv_signal_init(loop, &sighup_watcher);
