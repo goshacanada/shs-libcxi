@@ -105,6 +105,14 @@ struct timeval pause_wait_time = {
 /* Time to wait before taking a NID out of the parked list */
 struct timeval down_nid_wait_time = { .tv_sec = 96 };
 
+/* Number of down NIDs on a switch to declare a switch as dead/parked. */
+unsigned int down_switch_nid_count = 3;
+
+/* Bitmask identifying switch ID. This may vary based on DFA algorithm
+ * being deployed by the network.
+ */
+unsigned int switch_id_mask = 0xfffc0;
+
 /* Time to wait before cheking SCT stability */
 struct timeval sct_stable_wait_time = { .tv_usec = 100000 };
 
@@ -955,6 +963,104 @@ static void modify_mcu_inflight(struct retry_handler *rh,
 		       sizeof(limit));
 }
 
+#define SWITCH_ID(nid) ((nid) & switch_id_mask)
+
+static int switch_compare(const void *a, const void *b)
+{
+	const struct switch_entry *x = (const struct switch_entry *)a;
+	const struct switch_entry *y = (const struct switch_entry *)b;
+
+	if (x->id < y->id)
+		return -1;
+	if (x->id > y->id)
+		return 1;
+	return 0;
+}
+
+static void switch_tree_inc(struct retry_handler *rh, uint32_t nid)
+{
+	struct switch_entry *entry;
+	struct switch_entry **ret;
+	const struct switch_entry comp = {
+		.id = SWITCH_ID(nid),
+	};
+
+	if (down_switch_nid_count == 0)
+		return;
+
+	ret = tfind(&comp, &rh->switch_tree, switch_compare);
+	if (!ret) {
+		entry = calloc(1, sizeof(*entry));
+		if (!entry)
+			fatal(rh, "Cannot allocate switch entry\n");
+
+		entry->id = comp.id;
+
+		ret = tsearch(entry, &rh->switch_tree, switch_compare);
+		if (!ret)
+			fatal(rh, "Not enough memory for switch tree entry\n");
+
+		if (entry != *ret)
+			fatal(rh, "Error inserting switch entry into tree\n");
+
+		rh->switch_tree_count++;
+		rh_printf(rh, LOG_WARNING,
+			  "Adding switch=%d to parked switches\n", entry->id);
+	} else {
+		entry = *ret;
+	}
+
+	entry->count++;
+}
+
+static void switch_tree_dec(struct retry_handler *rh, uint32_t nid)
+{
+	struct switch_entry *entry;
+	struct switch_entry **ret;
+	struct switch_entry comp = {
+		.id = SWITCH_ID(nid),
+	};
+
+	if (down_switch_nid_count == 0)
+		return;
+
+	ret = tfind(&comp, &rh->switch_tree, switch_compare);
+	if (!ret)
+		fatal(rh, "Cannot find switch=%d in tree\n", comp.id);
+
+	entry = *ret;
+
+	entry->count--;
+	if (entry->count == 0) {
+		rh->switch_tree_count--;
+		tdelete(entry, &rh->switch_tree, switch_compare);
+		rh_printf(rh, LOG_WARNING,
+			  "Deleting switch=%d from parked switches\n",
+			  entry->id);
+		free(entry);
+	}
+}
+
+bool switch_parked(struct retry_handler *rh, uint32_t nid)
+{
+	struct switch_entry *entry;
+	struct switch_entry **ret;
+	const struct switch_entry comp = {
+		.id = SWITCH_ID(nid),
+	};
+
+	if (rh->switch_tree_count == 0)
+		return false;
+
+	ret = tfind(&comp, &rh->switch_tree, switch_compare);
+	if (!ret)
+		return false;
+
+	entry = *ret;
+
+	return entry->count >= down_switch_nid_count;
+}
+
 void release_nid(struct retry_handler *rh, struct nid_node *node)
 {
 	/* Feature is disabled - do nothing */
@@ -964,6 +1070,8 @@ void release_nid(struct retry_handler *rh, struct nid_node *node)
 
 	rh_printf(rh, LOG_WARNING, "Removing nid=%d (mac=%s) from parked list\n",
 	       node->nid, nid_to_mac(node->nid));
+
+	switch_tree_dec(rh, node->nid);
 
 	timer_del(&node->timeout_list);
 	RB_REMOVE(nid_tree, &rh->nid_head, node);
@@ -1033,6 +1141,7 @@ void nid_tree_insert(struct retry_handler *rh, uint32_t nid)
 	}
 
 	rh->nid_tree_count++;
+	switch_tree_inc(rh, node->nid);
 }
 
 /* Compare function for the SCT tree */
@@ -1960,12 +2069,17 @@ static int start_rh(struct retry_handler *rh, unsigned int dev_id)
 	default_ioi_unord_limit_inflight = limit.ioi_unord_limit;
 
 	rh->nid_tree_count = 0;
+	rh->switch_tree = NULL;
+	rh->switch_tree_count = 0;
 
 	/* Print additional information from config */
 	rh_printf(rh, LOG_WARNING, "down_nid_get_packets_inflight (%u)\n",
 		  down_nid_get_packets_inflight);
 	rh_printf(rh, LOG_WARNING, "down_nid_put_packets_inflight (%u)\n",
 		  down_nid_put_packets_inflight);
+	rh_printf(rh, LOG_WARNING, "down_switch_nid_count (%u)\n",
+		  down_switch_nid_count);
+	rh_printf(rh, LOG_WARNING, "switch_id_mask (0x%x)\n", switch_id_mask);
 	rh_printf(rh, LOG_WARNING, "max_fabric_packet_age (usecs) (%u)\n",
 		  max_fabric_packet_age);
 	rh_printf(rh, LOG_WARNING, "max_spt_retries (timeouts) (%u)\n",

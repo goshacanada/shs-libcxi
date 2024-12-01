@@ -171,8 +171,12 @@ void unordered_spt_timeout(struct retry_handler *rh,
 		rh_printf(rh, LOG_NOTICE, "cancelling spt=%u which has an uncorrectable error\n",
 			  spt->spt_idx);
 		schedule_cancel_spt(rh, spt, C_RC_UNCOR);
+	} else if (switch_parked(rh, nid)) {
+		rh_printf(rh, LOG_NOTICE, "cancelling spt=%u since target nid=%d (mac=%s) switch was determined down\n",
+			  spt->spt_idx, nid, nid_to_mac(nid));
+		schedule_cancel_spt(rh, spt, C_RC_UNDELIVERABLE);
 	} else if (nid_parked(rh, nid)) {
-		rh_printf(rh, LOG_NOTICE, "cancelling spt=%u because it is targetting nid=%d (mac=%s) which was determined to be down\n",
+		rh_printf(rh, LOG_NOTICE, "cancelling spt=%u since target nid=%d (mac=%s) was determined down\n",
 			  spt->spt_idx, nid, nid_to_mac(nid));
 		schedule_cancel_spt(rh, spt, C_RC_UNDELIVERABLE);
 	} else if ((spt->opcode == C_CMD_ATOMIC ||

@@ -34,6 +34,11 @@ struct timer_list {
 	void (*func)(struct retry_handler *rh, struct timer_list *entry);
 };
 
+struct switch_entry {
+	uint32_t id;
+	uint16_t count;
+};
+
 struct nid_node {
 	RB_ENTRY(nid_node) entry;
 	uint32_t nid;
@@ -48,6 +53,9 @@ int nid_comp(struct nid_node *d1, struct nid_node *d2);
 
 /* Highest possible value of max_spt_retries */
 #define MAX_SPT_RETRIES_LIMIT 7
+
+#define DFA_BITS 20U
+#define DFA_MAX ((1 << DFA_BITS) - 1)
 
 struct retry_handler {
 	unsigned int dev_id;	/* cxi0, ... */
@@ -89,6 +97,12 @@ struct retry_handler {
 
 	/* Count of number of NIDs in parked/down tree. */
 	unsigned int nid_tree_count;
+
+	/* Tree of switches */
+	void *switch_tree;
+
+	/* Count of number of switches in parked/down tree. */
+	unsigned int switch_tree_count;
 
 	/* Semi permanent storage for the TRS CAM entries. These
 	 * should be refreshed on demand.
@@ -436,6 +450,8 @@ extern struct timeval down_nid_wait_time;
 extern unsigned int down_nid_spt_timeout_epoch;
 extern unsigned int down_nid_get_packets_inflight;
 extern unsigned int down_nid_put_packets_inflight;
+extern unsigned int down_switch_nid_count;
+extern unsigned int switch_id_mask;
 extern struct timeval sct_stable_wait_time;
 extern char *rh_stats_dir;
 extern char *config_file;
@@ -518,6 +534,7 @@ void release_nid(struct retry_handler *rh, struct nid_node *node);
 void timeout_release_nid(struct retry_handler *rh, struct timer_list *entry);
 void nid_tree_insert(struct retry_handler *rh, uint32_t nid);
 struct nid_node *nid_parked(struct retry_handler *rh, uint32_t nid);
+bool switch_parked(struct retry_handler *rh, uint32_t nid);
 
 int stats_init(struct retry_handler *rh);
 void stats_fini(void);

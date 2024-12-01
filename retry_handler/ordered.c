@@ -799,14 +799,18 @@ known:
 
 	/* Check if the destination is on the parked list */
 	nid = cxi_dfa_nid(sct->sct_cam.dfa);
-	if (nid_parked(rh, nid)) {
+	if (switch_parked(rh, nid)) {
 		sct->cancel_spts = true;
 		sct->cancel_rc = C_RC_UNDELIVERABLE;
 		rh_printf(rh, LOG_WARNING,
-			  "will close sct=%u because it is targetting nid=%d (mac=%s) which was determined to be down.\n",
-			  sct->sct_idx,
-			  nid,
-			  nid_to_mac(nid));
+			  "closing sct=%u since target nid=%d (mac=%s) switch was determined down\n",
+			  sct->sct_idx, nid, nid_to_mac(nid));
+	} else if (nid_parked(rh, nid)) {
+		sct->cancel_spts = true;
+		sct->cancel_rc = C_RC_UNDELIVERABLE;
+		rh_printf(rh, LOG_WARNING,
+			  "closing sct=%u since target nid=%d (mac=%s) was determined down\n",
+			  sct->sct_idx, nid, nid_to_mac(nid));
 	}
 
 	spt = list_first_entry_or_null(&sct->spt_list,
