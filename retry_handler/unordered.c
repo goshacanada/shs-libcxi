@@ -76,7 +76,7 @@ static void schedule_retry_unordered_pkt(struct retry_handler *rh,
 
 /* Callback function for an SPT whose retry timer expired */
 static void timeout_retry_unordered_pkt(struct retry_handler *rh,
-					 struct timer_list *entry)
+					struct timer_list *entry)
 {
 	struct spt_entry *spt = container_of(entry, struct spt_entry,
 					     timeout_list);
@@ -85,7 +85,7 @@ static void timeout_retry_unordered_pkt(struct retry_handler *rh,
 		rh_printf(rh, LOG_NOTICE, "cancelling spt=%u because its CQ %u is disabled\n",
 			  spt->spt_idx, spt->ram0.comp_cq);
 
-		schedule_cancel_spt(rh, spt, C_RC_CANCELED);
+		schedule_cancel_spt(rh, spt, C_RC_UNDELIVERABLE);
 	} else {
 		retry_unordered_pkt(rh, spt);
 	}
@@ -166,7 +166,7 @@ void unordered_spt_timeout(struct retry_handler *rh,
 	if (is_cq_closed(rh, spt)) {
 		rh_printf(rh, LOG_NOTICE, "cancelling spt=%u because its CQ %u is disabled\n",
 			  spt->spt_idx, spt->ram0.comp_cq);
-		schedule_cancel_spt(rh, spt, C_RC_CANCELED);
+		schedule_cancel_spt(rh, spt, C_RC_UNDELIVERABLE);
 	} else if (has_uncor(rh, spt)) {
 		rh_printf(rh, LOG_NOTICE, "cancelling spt=%u which has an uncorrectable error\n",
 			  spt->spt_idx);
