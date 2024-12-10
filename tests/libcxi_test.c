@@ -11,6 +11,41 @@
 
 #include "libcxi_test_common.h"
 
+int svc_id2;
+struct cxil_lni *lni2;
+
+/* Allocate a service with no restrictions - use for lni2 */
+void lni2_setup(void)
+{
+	int ret;
+	struct cxi_svc_desc svc_desc = {};
+
+	svc_id2 = cxil_alloc_svc(dev, &svc_desc, NULL);
+	cr_assert_gt(svc_id2, 0, "cxil_alloc_svc(): Failed. ret:%d", svc_id2);
+
+	svc_desc.svc_id = svc_id2;
+
+	ret = cxil_alloc_lni(dev, &lni2, svc_id2);
+	cr_assert_eq(ret, 0, "ret = (%d) %s", ret, strerror(-ret));
+	cr_assert_neq(lni2, NULL);
+}
+
+void lni2_teardown(void)
+{
+	int ret;
+
+	if (!lni2)
+		return;
+
+	ret = cxil_destroy_lni(lni2);
+	cr_expect_eq(ret, 0, "%s: cxil_destroy_lni() returns (%d) %s",
+		     __func__, ret, strerror(-ret));
+	lni2 = NULL;
+
+	ret = cxil_destroy_svc(dev, svc_id2);
+	cr_assert_eq(ret, 0, "ret:%d", ret);
+}
+
 TestSuite(dev);
 
 struct dev_open_params {
@@ -416,8 +451,12 @@ ParameterizedTest(struct alloc_cps_params *param, cps, alloc_cps)
 	int cp_cnt = 0;
 	struct cxil_lni *cp_lni;
 
+	lni2_setup();
+
 	if (param->null_lni)
 		cp_lni = NULL;
+	else if (param->count > 1)
+		cp_lni = lni2;
 	else
 		cp_lni = lni;
 
@@ -432,7 +471,7 @@ ParameterizedTest(struct alloc_cps_params *param, cps, alloc_cps)
 		else
 			cp = &cps[i];
 
-		rc = cxil_alloc_cp(cp_lni, param->vni, param->tc,
+		rc = cxil_alloc_cp(cp_lni, param->vni + i, param->tc,
 				   param->tc_type, cp);
 
 		if ((i + 1) == param->count) {
@@ -455,6 +494,8 @@ ParameterizedTest(struct alloc_cps_params *param, cps, alloc_cps)
 
 	if (param->count > 0)
 		free(cps);
+
+	lni2_teardown();
 }
 
 TestSuite(cmdq, .init = lni_setup, .fini = lni_teardown);
