@@ -361,6 +361,22 @@ int read_config(const char *filename, struct retry_handler *rh)
 		}
 	}
 
+	settings = config_lookup(&cfg, "down_nid_pkt_count");
+	if (settings) {
+		intconf = config_setting_get_int(settings);
+		if (intconf) {
+			if (intconf < 0) {
+				rh_printf(rh, LOG_ERR, "config error line %d, invalid \"down_nid_pkt_count\" value %u\n",
+					  config_setting_source_line(settings),
+					  intconf);
+				rc = 1;
+				goto out;
+			}
+
+			down_nid_pkt_count = intconf;
+		}
+	}
+
 	settings = config_lookup(&cfg, "switch_id_mask");
 	if (settings) {
 		intconf = config_setting_get_int(settings);

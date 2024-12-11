@@ -108,6 +108,9 @@ struct timeval down_nid_wait_time = { .tv_sec = 96 };
 /* Number of down NIDs on a switch to declare a switch as dead/parked. */
 unsigned int down_switch_nid_count = 3;
 
+/* Number of undeliverable packets to a NID to be considered as down. */
+unsigned int down_nid_pkt_count = 2;
+
 /* Bitmask identifying switch ID. This may vary based on DFA algorithm
  * being deployed by the network.
  */
@@ -1058,6 +1061,11 @@ static struct nid_entry *nid_find(struct retry_handler *rh, uint32_t nid)
 	return *ret;
 }
 
+static bool is_nid_parked(struct retry_handler *rh, struct nid_entry *entry)
+{
+	return entry->pkt_count >= down_nid_pkt_count;
+}
+
 void nid_tree_del(struct retry_handler *rh, uint32_t nid)
 {
 	struct nid_entry *entry;
@@ -1075,18 +1083,27 @@ void nid_tree_del(struct retry_handler *rh, uint32_t nid)
 		  "Removing nid=%d (mac=%s) from parked list\n", entry->nid,
 		  nid_to_mac(entry->nid));
 
-	switch_tree_dec(rh, entry->nid);
+	/* This NID is only added to the switch tree if it has met the parked
+	 * threshold.
+	 */
+	if (is_nid_parked(rh, entry))
+		switch_tree_dec(rh, entry->nid);
+
 	timer_del(&entry->timeout_list);
 	tdelete(entry, &rh->nid_tree, nid_compare);
 	free(entry);
 
+	/* Only undo OXE and PCT configuration once NID tree is empty and NIDs
+	 * had previously been parked.
+	 */
 	rh->nid_tree_count--;
-	if (rh->nid_tree_count == 0) {
+	if (rh->nid_tree_count == 0 && rh->parked_nids) {
 		modify_spt_timeout(rh, default_spt_timeout_epoch);
 		modify_mcu_inflight(rh, default_get_packets_inflight,
 				    default_put_limit_inflight,
 				    default_ioi_ord_limit_inflight,
 				    default_ioi_unord_limit_inflight);
+		rh->parked_nids = false;
 	}
 }
 
@@ -1094,12 +1111,14 @@ bool nid_parked(struct retry_handler *rh, uint32_t nid)
 {
 	struct nid_entry *entry;
 
-	if (rh->nid_tree_count == 0)
+	if (!rh->parked_nids)
 		return false;
 
 	entry = nid_find(rh, nid);
+	if (!entry)
+		return false;
 
-	return entry != NULL;
+	return is_nid_parked(rh, entry);
 }
 
 static void timeout_release_nid(struct retry_handler *rh,
@@ -1151,22 +1170,29 @@ void nid_tree_inc(struct retry_handler *rh, uint32_t nid)
 	entry = nid_find(rh, nid);
 	if (!entry) {
 		entry = nid_alloc(rh, nid);
+		rh->nid_tree_count++;
+	} else {
+		timer_del(&entry->timeout_list);
+	}
 
-		if (rh->nid_tree_count == 0) {
+	/* If NID has met the threshold for being parked, add NID to down
+	 * switch tree and modify OXE and PCT settings.
+	 */
+	entry->pkt_count++;
+	if (is_nid_parked(rh, entry)) {
+		switch_tree_inc(rh, entry->nid);
+
+		if (!rh->parked_nids) {
 			modify_spt_timeout(rh, down_nid_spt_timeout_epoch);
 			modify_mcu_inflight(rh, down_nid_get_packets_inflight,
 					    down_nid_put_packets_inflight,
 					    down_nid_put_packets_inflight,
 					    down_nid_put_packets_inflight);
-		}
 
-		rh->nid_tree_count++;
-		switch_tree_inc(rh, entry->nid);
-	} else {
-		timer_del(&entry->timeout_list);
+			rh->parked_nids = true;
+		}
 	}
 
-	entry->pkt_count++;
 	timer_add(rh, &entry->timeout_list, &down_nid_wait_time);
 	rh_printf(rh, LOG_DEBUG, "Re-upping park time for nid=%u (mac=%s)\n",
 		  entry->nid, nid_to_mac(entry->nid));
@@ -2100,6 +2126,7 @@ static int start_rh(struct retry_handler *rh, unsigned int dev_id)
 	rh->nid_tree_count = 0;
 	rh->switch_tree = NULL;
 	rh->switch_tree_count = 0;
+	rh->parked_nids = false;
 
 	/* Print additional information from config */
 	rh_printf(rh, LOG_WARNING, "down_nid_get_packets_inflight (%u)\n",
@@ -2108,6 +2135,8 @@ static int start_rh(struct retry_handler *rh, unsigned int dev_id)
 		  down_nid_put_packets_inflight);
 	rh_printf(rh, LOG_WARNING, "down_switch_nid_count (%u)\n",
 		  down_switch_nid_count);
+	rh_printf(rh, LOG_WARNING, "down_nid_pkt_count (%u)\n",
+		  down_nid_pkt_count);
 	rh_printf(rh, LOG_WARNING, "switch_id_mask (0x%x)\n", switch_id_mask);
 	rh_printf(rh, LOG_WARNING, "max_fabric_packet_age (usecs) (%u)\n",
 		  max_fabric_packet_age);

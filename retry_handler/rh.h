@@ -101,6 +101,11 @@ struct retry_handler {
 	/* Count of number of switches in parked/down tree. */
 	unsigned int switch_tree_count;
 
+	/* Signal if OXE and PCT configuration has been modified due to
+	 * undeliverable packets.
+	 */
+	bool parked_nids;
+
 	/* Semi permanent storage for the TRS CAM entries. These
 	 * should be refreshed on demand.
 	 *
@@ -446,6 +451,7 @@ extern unsigned int down_nid_spt_timeout_epoch;
 extern unsigned int down_nid_get_packets_inflight;
 extern unsigned int down_nid_put_packets_inflight;
 extern unsigned int down_switch_nid_count;
+extern unsigned int down_nid_pkt_count;
 extern unsigned int switch_id_mask;
 extern struct timeval sct_stable_wait_time;
 extern char *rh_stats_dir;
