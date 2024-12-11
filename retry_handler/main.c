@@ -127,16 +127,6 @@ static unsigned int default_ioi_unord_limit_inflight;
 unsigned int down_nid_get_packets_inflight = 128;
 unsigned int down_nid_put_packets_inflight = 128;
 
-/**
- * Compare two DFA NIDs
- * @return Negative value, 0, or Positive value as nid1 is <, == or > nid2
- */
-int nid_comp(struct nid_node *d1, struct nid_node *d2)
-{
-	return (d1->nid - d2->nid);
-};
-RB_GENERATE(nid_tree, nid_node, entry, nid_comp)
-
 /* RH Printf wrapper to allow log level specification */
 void rh_printf(const struct retry_handler *rh,
 	       unsigned int base_log_level,
@@ -643,33 +633,14 @@ static void increment_sct_seqno(struct retry_handler *rh, struct sct_entry *sct)
 void schedule_cancel_spt(struct retry_handler *rh, struct spt_entry *spt,
 			 enum c_return_code return_code)
 {
-	struct nid_node *node;
 	struct timeval sct_delta;
 	struct timeval tv;
 
 	spt->cancel_return_code = return_code;
 
 	/* Park the NID if the destination was unreachable */
-	if (return_code == C_RC_UNDELIVERABLE) {
-		node = nid_parked(rh, cxi_dfa_nid(spt->dfa));
-
-		/* Add NID to the tree if it isn't already there */
-		if (!node) {
-			nid_tree_insert(rh, cxi_dfa_nid(spt->dfa));
-
-		/* We are still seeing timeouts, so re-up the amount of
-		 * time this NID should be parked.
-		 */
-		} else {
-			rh_printf(rh, LOG_DEBUG,
-				  "Re-upping park time for nid=%u (mac=%s)\n",
-				   node->nid, nid_to_mac(node->nid));
-			timer_del(&node->timeout_list);
-			node->timeout_list.func = timeout_release_nid;
-			timer_add(rh, &node->timeout_list,
-				  &down_nid_wait_time);
-		}
-	}
+	if (return_code == C_RC_UNDELIVERABLE)
+		nid_tree_inc(rh, cxi_dfa_nid(spt->dfa));
 
 	if (spt->has_timed_out && spt->ram0.req_order == 1) {
 		/* Hold onto this packet so an explicit clear isn't
@@ -1061,24 +1032,55 @@ bool switch_parked(struct retry_handler *rh, uint32_t nid)
 	return entry->count >= down_switch_nid_count;
 }
 
-void release_nid(struct retry_handler *rh, struct nid_node *node)
+static int nid_compare(const void *a, const void *b)
 {
+	const struct nid_entry *x = (const struct nid_entry *)a;
+	const struct nid_entry *y = (const struct nid_entry *)b;
+
+	if (x->nid < y->nid)
+		return -1;
+	if (x->nid > y->nid)
+		return 1;
+	return 0;
+}
+
+static struct nid_entry *nid_find(struct retry_handler *rh, uint32_t nid)
+{
+	struct nid_entry **ret;
+	struct nid_entry comp = {
+		.nid = nid,
+	};
+
+	ret = tfind(&comp, &rh->nid_tree, nid_compare);
+	if (!ret)
+		return NULL;
+
+	return *ret;
+}
+
+void nid_tree_del(struct retry_handler *rh, uint32_t nid)
+{
+	struct nid_entry *entry;
+
 	/* Feature is disabled - do nothing */
 	if (down_nid_wait_time.tv_sec == 0 &&
 	    down_nid_wait_time.tv_usec == 0)
 		return;
 
-	rh_printf(rh, LOG_WARNING, "Removing nid=%d (mac=%s) from parked list\n",
-	       node->nid, nid_to_mac(node->nid));
+	entry = nid_find(rh, nid);
+	if (!entry)
+		return;
 
-	switch_tree_dec(rh, node->nid);
+	rh_printf(rh, LOG_WARNING,
+		  "Removing nid=%d (mac=%s) from parked list\n", entry->nid,
+		  nid_to_mac(entry->nid));
 
-	timer_del(&node->timeout_list);
-	RB_REMOVE(nid_tree, &rh->nid_head, node);
-	free(node);
+	switch_tree_dec(rh, entry->nid);
+	timer_del(&entry->timeout_list);
+	tdelete(entry, &rh->nid_tree, nid_compare);
+	free(entry);
 
 	rh->nid_tree_count--;
-
 	if (rh->nid_tree_count == 0) {
 		modify_spt_timeout(rh, default_spt_timeout_epoch);
 		modify_mcu_inflight(rh, default_get_packets_inflight,
@@ -1088,60 +1090,86 @@ void release_nid(struct retry_handler *rh, struct nid_node *node)
 	}
 }
 
-void timeout_release_nid(struct retry_handler *rh, struct timer_list *entry)
+bool nid_parked(struct retry_handler *rh, uint32_t nid)
 {
-	struct nid_node *node = container_of(entry, struct nid_node,
-					     timeout_list);
-	rh_printf(rh, LOG_DEBUG, "%s called back for nid=%d (mac=%s)\n", __func__,
-		  node->nid, nid_to_mac(node->nid));
-	release_nid(rh, node);
+	struct nid_entry *entry;
+
+	if (rh->nid_tree_count == 0)
+		return false;
+
+	entry = nid_find(rh, nid);
+
+	return entry != NULL;
 }
 
-struct nid_node *nid_parked(struct retry_handler *rh, uint32_t nid)
+static void timeout_release_nid(struct retry_handler *rh,
+				struct timer_list *entry)
 {
-	struct nid_node find;
-
-	/* Feature is disabled - return NULL */
-	if (down_nid_wait_time.tv_sec == 0 &&
-	    down_nid_wait_time.tv_usec == 0)
-		return NULL;
-
-	find.nid = nid;
-	return RB_FIND(nid_tree, &rh->nid_head, &find);
+	struct nid_entry *node =
+		container_of(entry, struct nid_entry, timeout_list);
+	rh_printf(rh, LOG_DEBUG, "%s called back for nid=%d (mac=%s)\n",
+		  __func__, node->nid, nid_to_mac(node->nid));
+	nid_tree_del(rh, node->nid);
 }
 
-void nid_tree_insert(struct retry_handler *rh, uint32_t nid)
+static struct nid_entry *nid_alloc(struct retry_handler *rh, uint32_t nid)
 {
-	struct nid_node *node;
+	struct nid_entry *entry;
+	struct nid_entry **ret;
+
+	entry = calloc(1, sizeof(*entry));
+	if (!entry)
+		fatal(rh, "Cannot allocate nid entry\n");
+
+	entry->nid = nid;
+	init_list_head(&entry->timeout_list.list);
+	entry->timeout_list.func = timeout_release_nid;
+
+	ret = tsearch(entry, &rh->nid_tree, nid_compare);
+	if (!ret)
+		fatal(rh, "Not enough memory for nid tree entry\n");
+
+	if (entry != *ret)
+		fatal(rh, "Error inserting nid entry into tree\n");
+
+	rh_printf(rh, LOG_WARNING, "Adding nid=%d (mac=%s) to parked list\n",
+		  entry->nid, nid_to_mac(entry->nid));
+
+	return entry;
+}
+
+/* Increment number of undeliverable packet count to a given NID. */
+void nid_tree_inc(struct retry_handler *rh, uint32_t nid)
+{
+	struct nid_entry *entry;
 
 	/* Feature is disabled - do nothing */
 	if (down_nid_wait_time.tv_sec == 0 &&
 	    down_nid_wait_time.tv_usec == 0)
 		return;
 
-	node = calloc(1, sizeof(*node));
-	if (!node)
-		fatal(rh, "Cannot alloc nid_node\n");
-	init_list_head(&node->timeout_list.list);
-	node->nid = nid;
-	node->timeout_list.func = timeout_release_nid;
-	timer_add(rh, &node->timeout_list, &down_nid_wait_time);
+	entry = nid_find(rh, nid);
+	if (!entry) {
+		entry = nid_alloc(rh, nid);
 
-	if (RB_INSERT(nid_tree, &rh->nid_head, node))
-		fatal(rh, "NID was already in tree when it isn't expected to be\n");
-	rh_printf(rh, LOG_WARNING, "Adding nid=%d (mac=%s) to parked list\n",
-		  node->nid, nid_to_mac(node->nid));
+		if (rh->nid_tree_count == 0) {
+			modify_spt_timeout(rh, down_nid_spt_timeout_epoch);
+			modify_mcu_inflight(rh, down_nid_get_packets_inflight,
+					    down_nid_put_packets_inflight,
+					    down_nid_put_packets_inflight,
+					    down_nid_put_packets_inflight);
+		}
 
-	if (rh->nid_tree_count == 0) {
-		modify_spt_timeout(rh, down_nid_spt_timeout_epoch);
-		modify_mcu_inflight(rh, down_nid_get_packets_inflight,
-				    down_nid_put_packets_inflight,
-				    down_nid_put_packets_inflight,
-				    down_nid_put_packets_inflight);
+		rh->nid_tree_count++;
+		switch_tree_inc(rh, entry->nid);
+	} else {
+		timer_del(&entry->timeout_list);
 	}
 
-	rh->nid_tree_count++;
-	switch_tree_inc(rh, node->nid);
+	entry->pkt_count++;
+	timer_add(rh, &entry->timeout_list, &down_nid_wait_time);
+	rh_printf(rh, LOG_DEBUG, "Re-upping park time for nid=%u (mac=%s)\n",
+		  entry->nid, nid_to_mac(entry->nid));
 }
 
 /* Compare function for the SCT tree */
@@ -2068,6 +2096,7 @@ static int start_rh(struct retry_handler *rh, unsigned int dev_id)
 	default_ioi_ord_limit_inflight = limit.ioi_ord_limit;
 	default_ioi_unord_limit_inflight = limit.ioi_unord_limit;
 
+	rh->nid_tree = NULL;
 	rh->nid_tree_count = 0;
 	rh->switch_tree = NULL;
 	rh->switch_tree_count = 0;
@@ -2262,7 +2291,6 @@ int main(int argc, char *argv[])
 	gettimeofday(&tv, NULL);
 	srand(getpid() * tv.tv_usec);
 	init_list_head(&rh.timeout_list.list);
-	RB_INIT(&rh.nid_head);
 	for (i = 0; i < C_PCT_CFG_SCT_CAM_ENTRIES; i++) {
 		init_list_head(&rh.sct_state[i].timeout_list.list);
 		rh.sct_state[i].timeout_list.func = timeout_reset_sct_pending;

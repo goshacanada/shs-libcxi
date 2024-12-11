@@ -171,7 +171,6 @@ void sct_timeout(struct retry_handler *rh, const struct c_event_pct *event)
 	struct sct_entry *sct;
 	struct sct_entry **ret;
 	struct timeval tv;
-	struct nid_node *node;
 	unsigned int nid;
 
 	gettimeofday(&tv, NULL);
@@ -216,7 +215,6 @@ void sct_timeout(struct retry_handler *rh, const struct c_event_pct *event)
 		timer_del(&rh->sct_state[sct->sct_idx].timeout_list);
 	}
 
-	node = nid_parked(rh, cxi_dfa_nid(sct->sct_cam.dfa));
 	nid = cxi_dfa_nid(sct->sct_cam.dfa);
 	/* TODO assert nid==node->nid */
 
@@ -225,15 +223,8 @@ void sct_timeout(struct retry_handler *rh, const struct c_event_pct *event)
 	 * We only need to do this check if max_sct_close_retries is set,
 	 * otherwise we're immediately force closing anyways.
 	 */
-	if (max_sct_close_retries && node) {
-		/* Reup park time for this nid */
-		rh_printf(rh, LOG_DEBUG, "Re-upping park time for nid=%u (mac=%s)\n",
-			  node->nid, nid_to_mac(node->nid));
-		timer_del(&node->timeout_list);
-		node->timeout_list.func = timeout_release_nid;
-		timer_add(rh, &node->timeout_list,
-			  &down_nid_wait_time);
 
+	if (max_sct_close_retries && nid_parked(rh, nid)) {
 		rh_printf(rh, LOG_WARNING, "force close of sct=%u (nid=%d, mac=%s, ep=%d, vni=%d) because it is targetting nid=%d (mac=%s) which was determined to be down\n",
 			  sct->sct_idx, nid, nid_to_mac(nid),
 			  cxi_dfa_ep(sct->sct_cam.dfa),
@@ -250,22 +241,6 @@ void sct_timeout(struct retry_handler *rh, const struct c_event_pct *event)
 			  sct->sct_idx, nid, nid_to_mac(nid),
 			  cxi_dfa_ep(sct->sct_cam.dfa),
 			  sct->sct_cam.vni, sct->close_retries);
-
-		/* Only execute parking logic if max_sct_close_retries
-		 * is non-zero.
-		 */
-		if (max_sct_close_retries) {
-			if (!node) {
-				nid_tree_insert(rh, nid);
-			} else {
-				rh_printf(rh, LOG_DEBUG, "Re-upping park time for nid=%u (mac=%s)\n",
-					  node->nid, nid_to_mac(node->nid));
-				timer_del(&node->timeout_list);
-				node->timeout_list.func = timeout_release_nid;
-				timer_add(rh, &node->timeout_list,
-					  &down_nid_wait_time);
-			}
-		}
 
 		sct->do_force_close = true;
 		release_sct(rh, sct);

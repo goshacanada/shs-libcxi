@@ -39,13 +39,11 @@ struct switch_entry {
 	uint16_t count;
 };
 
-struct nid_node {
-	RB_ENTRY(nid_node) entry;
+struct nid_entry {
 	uint32_t nid;
+	unsigned int pkt_count;
 	struct timer_list timeout_list;
 };
-
-int nid_comp(struct nid_node *d1, struct nid_node *d2);
 
 #define SPT_TRY_NUM_SIZE 8U
 
@@ -92,8 +90,8 @@ struct retry_handler {
 	struct timer_list timeout_list;
 	unsigned int timer_generation;
 
-	/* RB Tree of NIDs */
-	RB_HEAD(nid_tree, nid_node) nid_head;
+	/* Tree of NIDs */
+	void *nid_tree;
 
 	/* Count of number of NIDs in parked/down tree. */
 	unsigned int nid_tree_count;
@@ -182,8 +180,6 @@ struct retry_handler {
 	 */
 	int log_increment;
 };
-
-RB_PROTOTYPE(nid_tree, nid_node, entry, nid_comp)
 
 struct sct_entry;
 
@@ -530,10 +526,10 @@ void tct_timeout(struct retry_handler *rh, const struct c_event_pct *event);
 void accel_close(struct retry_handler *rh, const struct c_event_pct *event);
 void check_sct_status(struct retry_handler *rh, struct sct_entry *sct,
 		      bool timedout);
-void release_nid(struct retry_handler *rh, struct nid_node *node);
-void timeout_release_nid(struct retry_handler *rh, struct timer_list *entry);
-void nid_tree_insert(struct retry_handler *rh, uint32_t nid);
-struct nid_node *nid_parked(struct retry_handler *rh, uint32_t nid);
+
+void nid_tree_del(struct retry_handler *rh, uint32_t nid);
+bool nid_parked(struct retry_handler *rh, uint32_t nid);
+void nid_tree_inc(struct retry_handler *rh, uint32_t nid);
 bool switch_parked(struct retry_handler *rh, uint32_t nid);
 
 int stats_init(struct retry_handler *rh);

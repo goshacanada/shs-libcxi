@@ -925,7 +925,6 @@ void new_status_for_spt(struct retry_handler *rh,
 	};
 	struct spt_entry *spt;
 	struct spt_entry **spt_tmp;
-	struct nid_node *parked;
 
 	rh_printf(rh, LOG_DEBUG,
 		  "new status for SPT (spt=%u, sct=%u)\n",
@@ -1045,9 +1044,7 @@ void new_status_for_spt(struct retry_handler *rh,
 	 */
 	if (spt_in->misc_info.rsp_status == C_RSP_NACK_RCVD &&
 	    (spt_in->spt_idx != sct->faked_spt_idx)) {
-		parked = nid_parked(rh, cxi_dfa_nid(sct->sct_cam.dfa));
-		if (parked)
-			release_nid(rh, parked);
+		nid_tree_del(rh, cxi_dfa_nid(sct->sct_cam.dfa));
 	}
 
 	/* Only these types of packets will be tracked on an SCT.
