@@ -17,7 +17,6 @@
 
 #include "libcxi.h"
 #include "list.h"
-#include "tree.h"
 
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 
