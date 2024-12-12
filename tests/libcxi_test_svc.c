@@ -489,7 +489,7 @@ Test(svc, svc_max)
 	 */
 	buf = aligned_alloc(s_page_size, qlen);
 	rc = cxil_map(lni, buf, qlen,
-		      CXI_MAP_PIN | CXI_MAP_READ | CXI_MAP_WRITE | CXI_MAP_IOVA_ALLOC,
+		      CXI_MAP_PIN | CXI_MAP_READ | CXI_MAP_WRITE | 0x80000,
 		      NULL, &buf_md);
 	cr_assert_eq(rc, -ENOSPC,
 		     "cxil_map Expected -ENOSPC, Received: %d", rc);
