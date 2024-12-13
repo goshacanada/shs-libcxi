@@ -427,6 +427,7 @@ union hni_pkt {
 } __attribute__((packed));
 
 extern unsigned int max_fabric_packet_age;
+extern unsigned int unorder_pkt_min_retry_delay;
 extern unsigned int max_spt_retries;
 extern unsigned int max_no_matching_conn_retries;
 extern unsigned int max_resource_busy_retries;

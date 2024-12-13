@@ -77,6 +77,22 @@ int read_config(const char *filename, struct retry_handler *rh)
 			max_fabric_packet_age = intconf;
 	}
 
+	settings = config_lookup(&cfg, "unorder_pkt_min_retry_delay");
+	if (settings) {
+		intconf = config_setting_get_int(settings);
+		if (intconf) {
+			if (intconf < 0 || intconf < max_fabric_packet_age) {
+				rh_printf(rh, LOG_ERR, "config error line %d, invalid \"unorder_pkt_min_retry_delay\" value %u\n",
+					  config_setting_source_line(settings),
+					  intconf);
+				rc = 1;
+				goto out;
+			}
+
+			unorder_pkt_min_retry_delay = intconf;
+		}
+	}
+
 	settings = config_lookup(&cfg, "max_no_matching_conn_retries");
 	if (settings) {
 		intconf = config_setting_get_int(settings);

@@ -38,6 +38,11 @@ static void timeout_free_spt(struct retry_handler *rh,
  * consideration ODP timeout (1 second) plus 1 msec of fabric latency. */
 unsigned int max_fabric_packet_age = 1001000;
 
+/* Minimum number of usecs to delay the retrying an unordered packet. This
+ * should be greater than or equal to max_fabric_packet_age.
+ */
+unsigned int unorder_pkt_min_retry_delay = 2000000;
+
 /* If an SPT is retried due to timeouts too many times, cancel it. */
 unsigned int max_spt_retries = 4;
 
@@ -2129,6 +2134,8 @@ static int start_rh(struct retry_handler *rh, unsigned int dev_id)
 	rh->parked_nids = false;
 
 	/* Print additional information from config */
+	rh_printf(rh, LOG_WARNING, "unorder_pkt_min_retry_delay (%u)\n",
+		  unorder_pkt_min_retry_delay);
 	rh_printf(rh, LOG_WARNING, "down_nid_get_packets_inflight (%u)\n",
 		  down_nid_get_packets_inflight);
 	rh_printf(rh, LOG_WARNING, "down_nid_put_packets_inflight (%u)\n",
