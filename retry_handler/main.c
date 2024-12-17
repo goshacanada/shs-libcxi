@@ -125,7 +125,7 @@ unsigned int switch_id_mask = 0xfffc0;
 struct timeval sct_stable_wait_time = { .tv_usec = 100000 };
 
 static unsigned int default_spt_timeout_epoch;
-unsigned int down_nid_spt_timeout_epoch = 22;
+unsigned int down_nid_spt_timeout_epoch = 24;
 
 /* Assumes only a single outstanding packet limit is used. */
 static unsigned int default_get_packets_inflight;
