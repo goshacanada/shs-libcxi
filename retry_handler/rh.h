@@ -41,6 +41,7 @@ struct switch_entry {
 struct nid_entry {
 	uint32_t nid;
 	unsigned int pkt_count;
+	bool parked;
 	struct timer_list timeout_list;
 };
 

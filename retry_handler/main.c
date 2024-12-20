@@ -1066,11 +1066,6 @@ static struct nid_entry *nid_find(struct retry_handler *rh, uint32_t nid)
 	return *ret;
 }
 
-static bool is_nid_parked(struct retry_handler *rh, struct nid_entry *entry)
-{
-	return entry->pkt_count >= down_nid_pkt_count;
-}
-
 void nid_tree_del(struct retry_handler *rh, uint32_t nid)
 {
 	struct nid_entry *entry;
@@ -1091,7 +1086,7 @@ void nid_tree_del(struct retry_handler *rh, uint32_t nid)
 	/* This NID is only added to the switch tree if it has met the parked
 	 * threshold.
 	 */
-	if (is_nid_parked(rh, entry))
+	if (entry->parked)
 		switch_tree_dec(rh, entry->nid);
 
 	timer_del(&entry->timeout_list);
@@ -1123,7 +1118,7 @@ bool nid_parked(struct retry_handler *rh, uint32_t nid)
 	if (!entry)
 		return false;
 
-	return is_nid_parked(rh, entry);
+	return entry->parked;
 }
 
 static void timeout_release_nid(struct retry_handler *rh,
@@ -1146,6 +1141,7 @@ static struct nid_entry *nid_alloc(struct retry_handler *rh, uint32_t nid)
 		fatal(rh, "Cannot allocate nid entry\n");
 
 	entry->nid = nid;
+	entry->parked = false;
 	init_list_head(&entry->timeout_list.list);
 	entry->timeout_list.func = timeout_release_nid;
 
@@ -1182,9 +1178,12 @@ void nid_tree_inc(struct retry_handler *rh, uint32_t nid)
 
 	/* If NID has met the threshold for being parked, add NID to down
 	 * switch tree and modify OXE and PCT settings.
+	 *
+	 * Note: pkt_count is never decrement.
 	 */
 	entry->pkt_count++;
-	if (is_nid_parked(rh, entry)) {
+	if (entry->pkt_count == down_nid_pkt_count) {
+		entry->parked = true;
 		switch_tree_inc(rh, entry->nid);
 
 		if (!rh->parked_nids) {
