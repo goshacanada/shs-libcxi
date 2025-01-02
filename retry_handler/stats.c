@@ -91,7 +91,11 @@ static int stats_readdir(const char *path, void *buffer,
 		filler(buffer, "tct_in_use", NULL, 0);
 		filler(buffer, "rh_sct_status_change", NULL, 0);
 		filler(buffer, "nid_value", NULL, 0);
-		filler(buffer, "reset_counters", NULL, 0);
+		filler(buffer, "nid_tree_count", NULL, 0);
+		filler(buffer, "max_nid_tree_count", NULL, 0);
+		filler(buffer, "switch_tree_count", NULL, 0);
+		filler(buffer, "max_switch_tree_count", NULL, 0);
+		filler(buffer, "parked_nids", NULL, 0);
 	} else if (!strcmp(path, "/config")) {
 		filler(buffer, "config_file_path", NULL, 0);
 		filler(buffer, "max_fabric_packet_age", NULL, 0);
@@ -250,6 +254,16 @@ static int stats_read(const char *path, char *buffer, size_t size,
 		value = down_nid_wait_time.tv_sec;
 	} else if (!strcmp(path, "/config/log_increment")) {
 		value = fs_rh->log_increment;
+	} else if (!strcmp(path, "/nid_tree_count")) {
+		value = fs_rh->nid_tree_count;
+	} else if (!strcmp(path, "/max_nid_tree_count")) {
+		value = fs_rh->stats.max_nid_tree_count;
+	} else if (!strcmp(path, "/switch_tree_count")) {
+		value = fs_rh->switch_tree_count;
+	} else if (!strcmp(path, "/max_switch_tree_count")) {
+		value = fs_rh->stats.max_switch_tree_count;
+	} else if (!strcmp(path, "/parked_nids")) {
+		value = fs_rh->parked_nids;
 	} else {
 		return -1;
 	}
