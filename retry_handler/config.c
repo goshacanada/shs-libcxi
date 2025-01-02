@@ -364,17 +364,15 @@ int read_config(const char *filename, struct retry_handler *rh)
 	settings = config_lookup(&cfg, "down_switch_nid_count");
 	if (settings) {
 		intconf = config_setting_get_int(settings);
-		if (intconf) {
-			if (intconf < 0 || intconf > 64) {
-				rh_printf(rh, LOG_ERR, "config error line %d, invalid \"down_switch_nid_count\" value %u\n",
-					  config_setting_source_line(settings),
-					  intconf);
-				rc = 1;
-				goto out;
-			}
-
-			down_switch_nid_count = intconf;
+		if (intconf < 0) {
+			rh_printf(rh, LOG_ERR, "config error line %d, invalid \"down_switch_nid_count\" value %u\n",
+				  config_setting_source_line(settings),
+				  intconf);
+			rc = 1;
+			goto out;
 		}
+
+		down_switch_nid_count = intconf;
 	}
 
 	settings = config_lookup(&cfg, "down_nid_pkt_count");
