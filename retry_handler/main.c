@@ -983,6 +983,9 @@ static void switch_tree_inc(struct retry_handler *rh, uint32_t nid)
 			fatal(rh, "Error inserting switch entry into tree\n");
 
 		rh->switch_tree_count++;
+		if (rh->switch_tree_count > rh->stats.max_switch_tree_count)
+			rh->stats.max_switch_tree_count = rh->switch_tree_count;
+
 		rh_printf(rh, LOG_WARNING,
 			  "Adding switch=%d to parked switches\n", entry->id);
 	} else {
@@ -1172,6 +1175,9 @@ void nid_tree_inc(struct retry_handler *rh, uint32_t nid)
 	if (!entry) {
 		entry = nid_alloc(rh, nid);
 		rh->nid_tree_count++;
+		if (rh->nid_tree_count > rh->stats.max_nid_tree_count)
+			rh->stats.max_nid_tree_count = rh->nid_tree_count;
+
 	} else {
 		timer_del(&entry->timeout_list);
 	}
@@ -2128,8 +2134,10 @@ static int start_rh(struct retry_handler *rh, unsigned int dev_id)
 
 	rh->nid_tree = NULL;
 	rh->nid_tree_count = 0;
+	rh->stats.max_nid_tree_count = 0;
 	rh->switch_tree = NULL;
 	rh->switch_tree_count = 0;
+	rh->stats.max_switch_tree_count = 0;
 	rh->parked_nids = false;
 
 	/* Print additional information from config */

@@ -175,6 +175,8 @@ struct retry_handler {
 		unsigned int event_retry_complete;
 		unsigned int ignored_sct_timeouts;
 		unsigned int rh_sct_status_change;
+		unsigned int max_nid_tree_count;
+		unsigned int max_switch_tree_count;
 	} stats;
 
 	/* Array of SMTs which have previously had messages cancelled. */
