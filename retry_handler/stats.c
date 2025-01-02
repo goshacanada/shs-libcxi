@@ -96,6 +96,8 @@ static int stats_readdir(const char *path, void *buffer,
 		filler(buffer, "switch_tree_count", NULL, 0);
 		filler(buffer, "max_switch_tree_count", NULL, 0);
 		filler(buffer, "parked_nids", NULL, 0);
+		filler(buffer, "parked_switches", NULL, 0);
+		filler(buffer, "max_parked_switches", NULL, 0);
 	} else if (!strcmp(path, "/config")) {
 		filler(buffer, "config_file_path", NULL, 0);
 		filler(buffer, "max_fabric_packet_age", NULL, 0);
@@ -264,6 +266,10 @@ static int stats_read(const char *path, char *buffer, size_t size,
 		value = fs_rh->stats.max_switch_tree_count;
 	} else if (!strcmp(path, "/parked_nids")) {
 		value = fs_rh->parked_nids;
+	} else if (!strcmp(path, "/parked_switches")) {
+		value = fs_rh->parked_switches;
+	} else if (!strcmp(path, "/max_parked_switches")) {
+		value = fs_rh->stats.max_parked_switches;
 	} else {
 		return -1;
 	}

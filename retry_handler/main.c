@@ -993,6 +993,12 @@ static void switch_tree_inc(struct retry_handler *rh, uint32_t nid)
 	}
 
 	entry->count++;
+	if (entry->count == down_switch_nid_count) {
+		entry->parked = true;
+		rh->parked_switches++;
+		if (rh->parked_switches > rh->stats.max_parked_switches)
+			rh->stats.max_parked_switches = rh->parked_switches;
+	}
 }
 
 static void switch_tree_dec(struct retry_handler *rh, uint32_t nid)
@@ -1012,7 +1018,12 @@ static void switch_tree_dec(struct retry_handler *rh, uint32_t nid)
 
 	entry = *ret;
 
+	if (entry->count == down_switch_nid_count) {
+		entry->parked = false;
+		rh->parked_switches--;
+	}
 	entry->count--;
+
 	if (entry->count == 0) {
 		rh->switch_tree_count--;
 		tdelete(entry, &rh->switch_tree, switch_compare);
@@ -1040,7 +1051,7 @@ bool switch_parked(struct retry_handler *rh, uint32_t nid)
 
 	entry = *ret;
 
-	return entry->count >= down_switch_nid_count;
+	return entry->parked;
 }
 
 static int nid_compare(const void *a, const void *b)
@@ -2139,6 +2150,8 @@ static int start_rh(struct retry_handler *rh, unsigned int dev_id)
 	rh->switch_tree_count = 0;
 	rh->stats.max_switch_tree_count = 0;
 	rh->parked_nids = false;
+	rh->parked_switches = 0;
+	rh->stats.max_parked_switches = 0;
 
 	/* Print additional information from config */
 	rh_printf(rh, LOG_WARNING, "unorder_pkt_min_retry_delay (%u)\n",

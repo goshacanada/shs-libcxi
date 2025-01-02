@@ -36,6 +36,7 @@ struct timer_list {
 struct switch_entry {
 	uint32_t id;
 	uint16_t count;
+	bool parked;
 };
 
 struct nid_entry {
@@ -107,6 +108,9 @@ struct retry_handler {
 	 */
 	bool parked_nids;
 
+	/* Count for current number of parked switches. */
+	unsigned int parked_switches;
+
 	/* Semi permanent storage for the TRS CAM entries. These
 	 * should be refreshed on demand.
 	 *
@@ -177,6 +181,7 @@ struct retry_handler {
 		unsigned int rh_sct_status_change;
 		unsigned int max_nid_tree_count;
 		unsigned int max_switch_tree_count;
+		unsigned int max_parked_switches;
 	} stats;
 
 	/* Array of SMTs which have previously had messages cancelled. */
