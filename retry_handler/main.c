@@ -1100,32 +1100,34 @@ void nid_tree_del(struct retry_handler *rh, uint32_t nid)
 	/* This NID is only added to the switch tree if it has met the parked
 	 * threshold.
 	 */
-	if (entry->parked)
+	if (entry->parked) {
 		switch_tree_dec(rh, entry->nid);
+
+		/* Once parked NIDs count reaches zero, reset SPT and MCU
+		 * configuration.
+		 */
+		rh->parked_nids--;
+		if (rh->parked_nids == 0) {
+			modify_spt_timeout(rh, default_spt_timeout_epoch);
+			modify_mcu_inflight(rh, default_get_packets_inflight,
+					    default_put_limit_inflight,
+					    default_ioi_ord_limit_inflight,
+					    default_ioi_unord_limit_inflight);
+		}
+	}
 
 	timer_del(&entry->timeout_list);
 	tdelete(entry, &rh->nid_tree, nid_compare);
 	free(entry);
 
-	/* Only undo OXE and PCT configuration once NID tree is empty and NIDs
-	 * had previously been parked.
-	 */
 	rh->nid_tree_count--;
-	if (rh->nid_tree_count == 0 && rh->parked_nids) {
-		modify_spt_timeout(rh, default_spt_timeout_epoch);
-		modify_mcu_inflight(rh, default_get_packets_inflight,
-				    default_put_limit_inflight,
-				    default_ioi_ord_limit_inflight,
-				    default_ioi_unord_limit_inflight);
-		rh->parked_nids = false;
-	}
 }
 
 bool nid_parked(struct retry_handler *rh, uint32_t nid)
 {
 	struct nid_entry *entry;
 
-	if (!rh->parked_nids)
+	if (rh->parked_nids == 0)
 		return false;
 
 	entry = nid_find(rh, nid);
@@ -1203,15 +1205,17 @@ void nid_tree_inc(struct retry_handler *rh, uint32_t nid)
 		entry->parked = true;
 		switch_tree_inc(rh, entry->nid);
 
-		if (!rh->parked_nids) {
+		if (rh->parked_nids == 0) {
 			modify_spt_timeout(rh, down_nid_spt_timeout_epoch);
 			modify_mcu_inflight(rh, down_nid_get_packets_inflight,
 					    down_nid_put_packets_inflight,
 					    down_nid_put_packets_inflight,
 					    down_nid_put_packets_inflight);
-
-			rh->parked_nids = true;
 		}
+
+		rh->parked_nids++;
+		if (rh->parked_nids > rh->stats.max_parked_nids)
+			rh->stats.max_parked_nids = rh->parked_nids;
 	}
 
 	timer_add(rh, &entry->timeout_list, &down_nid_wait_time);
@@ -2149,7 +2153,8 @@ static int start_rh(struct retry_handler *rh, unsigned int dev_id)
 	rh->switch_tree = NULL;
 	rh->switch_tree_count = 0;
 	rh->stats.max_switch_tree_count = 0;
-	rh->parked_nids = false;
+	rh->parked_nids = 0;
+	rh->stats.max_parked_nids = 0;
 	rh->parked_switches = 0;
 	rh->stats.max_parked_switches = 0;
 

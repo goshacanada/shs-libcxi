@@ -106,7 +106,7 @@ struct retry_handler {
 	/* Signal if OXE and PCT configuration has been modified due to
 	 * undeliverable packets.
 	 */
-	bool parked_nids;
+	unsigned int parked_nids;
 
 	/* Count for current number of parked switches. */
 	unsigned int parked_switches;
@@ -181,6 +181,7 @@ struct retry_handler {
 		unsigned int rh_sct_status_change;
 		unsigned int max_nid_tree_count;
 		unsigned int max_switch_tree_count;
+		unsigned int max_parked_nids;
 		unsigned int max_parked_switches;
 	} stats;
 
