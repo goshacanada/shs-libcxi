@@ -986,8 +986,7 @@ static void switch_tree_inc(struct retry_handler *rh, uint32_t nid)
 		if (rh->switch_tree_count > rh->stats.max_switch_tree_count)
 			rh->stats.max_switch_tree_count = rh->switch_tree_count;
 
-		rh_printf(rh, LOG_WARNING,
-			  "Adding switch=%d to parked switches\n", entry->id);
+		rh_printf(rh, LOG_DEBUG, "Tracking switch=%d\n", entry->id);
 	} else {
 		entry = *ret;
 	}
@@ -995,6 +994,9 @@ static void switch_tree_inc(struct retry_handler *rh, uint32_t nid)
 	entry->count++;
 	if (entry->count == down_switch_nid_count) {
 		entry->parked = true;
+		rh_printf(rh, LOG_WARNING,
+			  "Adding switch=%d to parked switches\n", entry->id);
+
 		rh->parked_switches++;
 		if (rh->parked_switches > rh->stats.max_parked_switches)
 			rh->stats.max_parked_switches = rh->parked_switches;
@@ -1020,6 +1022,10 @@ static void switch_tree_dec(struct retry_handler *rh, uint32_t nid)
 
 	if (entry->count == down_switch_nid_count) {
 		entry->parked = false;
+		rh_printf(rh, LOG_WARNING,
+			  "Removing switch=%d from parked switches\n",
+			  entry->id);
+
 		rh->parked_switches--;
 	}
 	entry->count--;
@@ -1027,9 +1033,7 @@ static void switch_tree_dec(struct retry_handler *rh, uint32_t nid)
 	if (entry->count == 0) {
 		rh->switch_tree_count--;
 		tdelete(entry, &rh->switch_tree, switch_compare);
-		rh_printf(rh, LOG_WARNING,
-			  "Deleting switch=%d from parked switches\n",
-			  entry->id);
+		rh_printf(rh, LOG_DEBUG, "Deleting switch=%d\n", entry->id);
 		free(entry);
 	}
 }
