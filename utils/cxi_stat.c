@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-only or BSD-2-Clause
- * Copyright 2022-2024 Hewlett Packard Enterprise Development LP
+ * Copyright 2022-2025 Hewlett Packard Enterprise Development LP
  */
 
 /* CXI status utility */
@@ -226,7 +226,7 @@ static void get_port_status(struct cxi_dev *cd)
 	if (is_c1)
 		rc = asprintf(&tmp_path, "%s/pause", base_path);
 	else
-		rc = asprintf(&tmp_path, "%s/link/config/pause", base_path);
+		rc = asprintf(&tmp_path, "%s/link/config/pause_map", base_path);
 	if (rc > 0) {
 		if (copy_data_from_file(tmp_path, buf) == 0) {
 			snprintf(cd->tx_pause_state, MAX_LEN, "%s", buf);
