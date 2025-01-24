@@ -11,7 +11,10 @@
 #ifdef HAVE_HIP_SUPPORT
 #include <hip/hip_runtime_api.h>
 #include <hip/driver_types.h>
+#include <hsa/hsa.h>
+#include <hsa/hsa_ext_amd.h>
 
+void *hsa_handle;
 void *libhip_handle;
 static hipError_t (*hip_malloc)(void **devPtr, size_t size);
 static hipError_t (*hip_host_alloc)(void **devPtr, size_t size, uint flags);
@@ -22,6 +25,14 @@ static hipError_t (*hip_memcpy)(void *dst, const void *src, size_t count,
 				enum hipMemcpyKind kind);
 static hipError_t (*hip_device_count)(int *count);
 static hipError_t (*hip_device_sync)(void);
+static hipError_t (*hsa_get_dmabuf)(const void *ptr, size_t size,
+				    int *dmabuf_fd, uint64_t *offset);
+static hsa_status_t (*hsa_put_dmabuf)(int dmabuf_fd);
+static hsa_status_t (*hsa_ptr_info)(const void *ptr,
+				    hsa_amd_pointer_info_t *info,
+				    void *(*alloc)(size_t),
+				    uint32_t *num_agents_accessible,
+				    hsa_agent_t **accessible);
 
 static int h_malloc(struct mem_window *win)
 {
@@ -86,6 +97,49 @@ static int h_memcpy(void *dst, const void *src, size_t count,
 	return 0;
 }
 
+int h_get_dmabuf_fd(const void *addr, size_t size, int *dmabuf_fd,
+		    uint64_t *offset)
+{
+	hsa_status_t rc;
+
+	rc = hsa_get_dmabuf(addr, size, dmabuf_fd, offset);
+	cr_assert_eq(rc, HSA_STATUS_SUCCESS, "hsa_get_dmabuf() failed %d", rc);
+
+	return 0;
+}
+
+int h_put_dmabuf_fd(int dmabuf_fd)
+{
+	hsa_status_t rc;
+
+	rc = hsa_put_dmabuf(dmabuf_fd);
+	cr_assert_eq(rc, HSA_STATUS_SUCCESS, "hsa_put_dmabuf() failed %d", rc);
+
+	return 0;
+}
+
+__attribute__((unused))
+static int h_mem_props(const void *addr, void **base, size_t *size,
+		       int *dmabuf_fd, uint64_t *offset)
+{
+	hsa_status_t ret;
+	hsa_amd_pointer_info_t info = {
+		.size = sizeof(info),
+	};
+
+	ret = hsa_ptr_info((void *)addr, &info, NULL, NULL, NULL);
+	cr_assert_eq(ret, HSA_STATUS_SUCCESS, "hsa_amd_ptr_info() failed %d",
+		     ret);
+	cr_assert_eq(info.type, HSA_EXT_POINTER_TYPE_HSA,
+		      "hsa_amd_ptr_info() not HSA");
+	*size = info.sizeInBytes;
+	*base = info.agentBaseAddress;
+
+	h_get_dmabuf_fd(addr, *size, dmabuf_fd, offset);
+
+	return 0;
+}
+
 int hip_lib_init(void)
 {
 	hipError_t ret;
@@ -99,6 +153,13 @@ int hip_lib_init(void)
 	if (!libhip_handle)
 		return -1;
 
+	hsa_handle = dlopen("libhsa-runtime64.so",
+			    RTLD_LAZY | RTLD_GLOBAL | RTLD_NODELETE);
+	if (!hsa_handle) {
+		dlclose(libhip_handle);
+		return -1;
+	}
+
 	hip_malloc = dlsym(libhip_handle, "hipMalloc");
 	hip_host_alloc = dlsym(libhip_handle, "hipHostAlloc");
 	hip_free = dlsym(libhip_handle, "hipFree");
@@ -107,10 +168,14 @@ int hip_lib_init(void)
 	hip_memcpy = dlsym(libhip_handle, "hipMemcpy");
 	hip_device_count = dlsym(libhip_handle, "hipGetDeviceCount");
 	hip_device_sync = dlsym(libhip_handle, "hipDeviceSynchronize");
+	hsa_get_dmabuf = dlsym(hsa_handle, "hsa_amd_portable_export_dmabuf");
+	hsa_put_dmabuf = dlsym(hsa_handle, "hsa_amd_portable_close_dmabuf");
+	hsa_ptr_info = dlsym(hsa_handle, "hsa_amd_pointer_info");
 
 	if (!hip_malloc || !hip_free || !hip_memset || !hip_memcpy ||
 	    !hip_device_count | !hip_device_sync || !hip_host_alloc ||
-	    !hip_host_free) {
+	    !hip_host_free || !hsa_get_dmabuf || !hsa_put_dmabuf ||
+	    !hsa_ptr_info) {
 		printf("dlerror:%s\n", dlerror());
 		dlclose(libhip_handle);
 		return -1;
@@ -118,6 +183,7 @@ int hip_lib_init(void)
 
 	ret = hip_device_count(&count);
 	if (ret != hipSuccess) {
+		dlclose(hsa_handle);
 		dlclose(libhip_handle);
 		return -1;
 	}
@@ -144,6 +210,9 @@ void hip_lib_fini(void)
 	gpu_host_alloc = NULL;
 	gpu_memset = NULL;
 	gpu_memcpy = NULL;
+
+	dlclose(hsa_handle);
+	hsa_handle = NULL;
 	dlclose(libhip_handle);
 	libhip_handle = NULL;
 }
