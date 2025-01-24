@@ -97,17 +97,6 @@ static int h_memcpy(void *dst, const void *src, size_t count,
 	return 0;
 }
 
-int h_get_dmabuf_fd(const void *addr, size_t size, int *dmabuf_fd,
-		    uint64_t *offset)
-{
-	hsa_status_t rc;
-
-	rc = hsa_get_dmabuf(addr, size, dmabuf_fd, offset);
-	cr_assert_eq(rc, HSA_STATUS_SUCCESS, "hsa_get_dmabuf() failed %d", rc);
-
-	return 0;
-}
-
 int h_put_dmabuf_fd(int dmabuf_fd)
 {
 	hsa_status_t rc;
@@ -118,24 +107,31 @@ int h_put_dmabuf_fd(int dmabuf_fd)
 	return 0;
 }
 
-__attribute__((unused))
-static int h_mem_props(const void *addr, void **base, size_t *size,
-		       int *dmabuf_fd, uint64_t *offset)
+static int h_mem_props(struct mem_window *win, void **base, size_t *size)
 {
-	hsa_status_t ret;
+	hsa_status_t rc;
 	hsa_amd_pointer_info_t info = {
 		.size = sizeof(info),
 	};
 
-	ret = hsa_ptr_info((void *)addr, &info, NULL, NULL, NULL);
-	cr_assert_eq(ret, HSA_STATUS_SUCCESS, "hsa_amd_ptr_info() failed %d",
-		     ret);
+	if (!win->use_dmabuf) {
+		win->hints.dmabuf_valid = false;
+		return 0;
+	}
+
+	rc = hsa_ptr_info(win->buffer, &info, NULL, NULL, NULL);
+	cr_assert_eq(rc, HSA_STATUS_SUCCESS, "hsa_amd_ptr_info() error %d", rc);
 	cr_assert_eq(info.type, HSA_EXT_POINTER_TYPE_HSA,
 		      "hsa_amd_ptr_info() not HSA");
+
 	*size = info.sizeInBytes;
 	*base = info.agentBaseAddress;
 
-	h_get_dmabuf_fd(addr, *size, dmabuf_fd, offset);
+	rc = hsa_get_dmabuf(win->buffer, *size, &win->hints.dmabuf_fd,
+			    &win->hints.dmabuf_offset);
+	cr_assert_eq(rc, HSA_STATUS_SUCCESS, "hsa_get_dmabuf() failed %d", rc);
+
+	win->hints.dmabuf_valid = true;
 
 	return 0;
 }
@@ -194,6 +190,8 @@ int hip_lib_init(void)
 	gpu_host_free = h_host_free;
 	gpu_memset = h_memset;
 	gpu_memcpy = h_memcpy;
+	gpu_props = h_mem_props;
+	gpu_close_fd = h_put_dmabuf_fd;
 
 	printf("Found AMD GPU\n");
 
@@ -210,6 +208,8 @@ void hip_lib_fini(void)
 	gpu_host_alloc = NULL;
 	gpu_memset = NULL;
 	gpu_memcpy = NULL;
+	gpu_props = NULL;
+	gpu_close_fd = NULL;
 
 	dlclose(hsa_handle);
 	hsa_handle = NULL;

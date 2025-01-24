@@ -401,30 +401,29 @@ static const char *const alloc_types[] = {
 	[ZE_MEMORY_TYPE_SHARED] = "shared",
 };
 
-static int ze_mem_props(const void *addr, void **base, size_t *size,
-			int *dma_buf_fd)
+static int ze_mem_props(struct mem_window *win, void **base, size_t *size)
 {
 	void *handle;
 	ze_result_t ze_ret;
 	ze_device_handle_t device_ptr;
 	ze_memory_allocation_properties_t alloc_props = {};
 
-	ze_ret = cxi_zeMemGetIpcHandle(context, addr,
+	ze_ret = cxi_zeMemGetIpcHandle(context, win->buffer,
 				       (ze_ipc_mem_handle_t *)&handle);
 	if (ze_ret != ZE_RESULT_SUCCESS) {
 		ZE_ERR("Failed to get IPC handle: %d\n", ze_ret);
 		return -EIO;
 	}
 
-	*dma_buf_fd = (int)(uintptr_t)handle;
+	win->hints.dmabuf_fd = (int)(uintptr_t)handle;
 
-	ze_ret = cxi_zeMemGetAddressRange(context, addr, base, size);
+	ze_ret = cxi_zeMemGetAddressRange(context, win->buffer, base, size);
 	if (ze_ret != ZE_RESULT_SUCCESS) {
 		ZE_ERR("Failed to get address range: %d\n", ze_ret);
 		return -EIO;
 	}
 
-	ze_ret = cxi_zeMemGetAllocProperties(context, addr, &alloc_props,
+	ze_ret = cxi_zeMemGetAllocProperties(context, win->buffer, &alloc_props,
 					     &device_ptr);
 	if (ze_ret != ZE_RESULT_SUCCESS)
 		ZE_ERR("Failed to get AllocProperties:%d\n", ze_ret);
@@ -432,6 +431,14 @@ static int ze_mem_props(const void *addr, void **base, size_t *size,
 		printf("alloc type:%d (%s)\n", alloc_props.type,
 		       alloc_types[alloc_props.type]);
 
+	win->hints.dmabuf_offset = (uintptr_t)win->buffer - (uintptr_t)*base;
+	win->hints.dmabuf_valid = true;
+
+	return 0;
+}
+
+static int ze_close_fd(int fd)
+{
 	return 0;
 }
 
@@ -498,6 +505,7 @@ int ze_init(void)
 	gpu_memset = ze_memset;
 	gpu_memcpy = ze_memcpy;
 	gpu_props = ze_mem_props;
+	gpu_close_fd = ze_close_fd;
 
 	return 0;
 

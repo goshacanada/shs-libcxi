@@ -97,6 +97,18 @@ static int c_memcpy(void *dst, const void *src, size_t count,
 	return 0;
 }
 
+static int c_gpu_props(struct mem_window *win, void **base, size_t *size)
+{
+	win->hints.dmabuf_valid = false;
+
+	return 0;
+}
+
+static int c_gpu_close_fd(int fd)
+{
+	return 0;
+}
+
 int cuda_lib_init(void)
 {
 	cudaError_t ret;
@@ -146,6 +158,8 @@ int cuda_lib_init(void)
 	gpu_host_free = c_host_free;
 	gpu_memset = c_memset;
 	gpu_memcpy = c_memcpy;
+	gpu_props = c_gpu_props;
+	gpu_close_fd = c_gpu_close_fd;
 
 	printf("Found NVIDIA GPU\n");
 
@@ -163,6 +177,8 @@ void cuda_lib_fini(void)
 	gpu_host_free = NULL;
 	gpu_memset = NULL;
 	gpu_memcpy = NULL;
+	gpu_props = NULL;
+	gpu_close_fd = NULL;
 	dlclose(libcuda_handle);
 	dlclose(libcudart_handle);
 

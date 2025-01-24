@@ -2087,17 +2087,24 @@ Test(map_xfer, device1)
 	gpu_lib_fini();
 }
 
+ParameterizedTestParameters(map_xfer, device_map_multiple)
+{
+	size_t param_sz;
+	static bool param[] = {false, true};
+
+	param_sz = ARRAY_SIZE(param);
+	return cr_make_param_array(bool, param, param_sz);
+}
+
 /* Map the exact same buffer multiple times. */
-Test(map_xfer, device_map_multiple, .timeout = 10000)
+ParameterizedTest(bool *use_dmabuf, map_xfer, device_map_multiple)
 {
 	int rc;
-	struct cxi_md_hints hints = {};
-	struct mem_window buf = {};
+	struct mem_window buf = {.use_dmabuf = *use_dmabuf};
 	struct cxi_md *mds[10];
 	int i;
 	void *base_addr;
 	size_t size;
-	int dma_buf_fd = 0;
 
 	rc = gpu_lib_init();
 	if (rc)
@@ -2107,19 +2114,14 @@ Test(map_xfer, device_map_multiple, .timeout = 10000)
 	rc = gpu_malloc(&buf);
 	cr_assert_eq(rc, 0, "gpu_malloc() failed %d", rc);
 
-	if (gpu_props) {
-		rc = gpu_props(buf.buffer, &base_addr, &size, &dma_buf_fd);
-		cr_assert(rc == 0 || rc == -ENOSYS);
-	}
-
-	hints.dmabuf_fd = dma_buf_fd;
-	hints.dmabuf_valid = true;
+	rc = gpu_props(&buf, &base_addr, &size);
+	cr_assert(rc == 0);
 
 	/* Map the buffer multiple times to ensure the stack can handle this. */
 	for (i = 0; i < 10; i++) {
 		rc = cxil_map(lni, buf.buffer, buf.length,
-			CXI_MAP_PIN | CXI_MAP_READ | CXI_MAP_DEVICE, &hints,
-			&mds[i]);
+			      CXI_MAP_PIN | CXI_MAP_READ | CXI_MAP_DEVICE,
+			      &buf.hints, &mds[i]);
 		cr_assert_eq(rc, 0, "cxil_map() should have failed %d", rc);
 	}
 
@@ -2128,17 +2130,29 @@ Test(map_xfer, device_map_multiple, .timeout = 10000)
 		cr_assert_eq(rc, 0, "cxil_unmap() should have failed %d", rc);
 	}
 
+	if (buf.hints.dmabuf_valid)
+		gpu_close_fd(buf.hints.dmabuf_fd);
+
 	gpu_free(buf.buffer);
 
 	gpu_lib_fini();
 }
 
-Test(map_xfer, device2)
+ParameterizedTestParameters(map_xfer, device2)
 {
-	struct mem_window src_mem;
+	size_t param_sz;
+	static bool param[] = {false, true};
+
+	param_sz = ARRAY_SIZE(param);
+	return cr_make_param_array(bool, param, param_sz);
+}
+
+ParameterizedTest(bool *use_dmabuf, map_xfer, device2)
+{
+	int rc;
+	struct mem_window src_mem = {.use_dmabuf = *use_dmabuf};
 	struct mem_window dst_mem;
 	size_t len = 64UL * 1024;
-	int rc;
 
 	rc = gpu_lib_init();
 	if (rc)
@@ -2180,15 +2194,25 @@ Test(map_xfer, device3)
 		free_iobuf(&src_mem);
 		free_unmap_devicebuf(&dst_mem);
 	}
+
 	gpu_lib_fini();
 }
 
-Test(map_xfer, device4)
+ParameterizedTestParameters(map_xfer, device4)
+{
+	size_t param_sz;
+	static bool param[] = {false, true};
+
+	param_sz = ARRAY_SIZE(param);
+	return cr_make_param_array(bool, param, param_sz);
+}
+
+ParameterizedTest(bool *use_dmabuf, map_xfer, device4)
 {
 	int rc;
 	size_t len;
-	struct mem_window src_mem;
-	struct mem_window dst_mem;
+	struct mem_window src_mem = {.use_dmabuf = *use_dmabuf};
+	struct mem_window dst_mem = {};
 
 	rc = gpu_lib_init();
 	if (rc)
@@ -2199,23 +2223,33 @@ Test(map_xfer, device4)
 	for (len = 0x8000; len < 0x100000000; len <<= 1) {
 		printf("len:%lx\n", len);
 
-		alloc_iobuf(len, &dst_mem, CXI_MAP_WRITE);
 		alloc_map_devicebuf(len, &src_mem, CXI_MAP_READ);
+		alloc_iobuf(len, &dst_mem, CXI_MAP_WRITE);
 
 		do_transfer(&src_mem, &dst_mem);
 
 		free_unmap_devicebuf(&src_mem);
 		free_iobuf(&dst_mem);
 	}
+
 	gpu_lib_fini();
 }
 
-Test(map_xfer, device5)
+ParameterizedTestParameters(map_xfer, device5)
+{
+	size_t param_sz;
+	static bool param[] = {false, true};
+
+	param_sz = ARRAY_SIZE(param);
+	return cr_make_param_array(bool, param, param_sz);
+}
+
+ParameterizedTest(bool *use_dmabuf, map_xfer, device5)
 {
 	int rc;
 	size_t len;
-	struct mem_window src_mem;
-	struct mem_window dst_mem;
+	struct mem_window src_mem = {.use_dmabuf = *use_dmabuf};
+	struct mem_window dst_mem = {.use_dmabuf = *use_dmabuf};
 
 	rc = gpu_lib_init();
 	if (rc)
@@ -2234,13 +2268,14 @@ Test(map_xfer, device5)
 		free_unmap_devicebuf(&src_mem);
 		free_unmap_devicebuf(&dst_mem);
 	}
+
 	gpu_lib_fini();
 }
 
 Test(map_xfer, device6)
 {
-	struct mem_window src_mem;
-	struct mem_window dst_mem;
+	struct mem_window src_mem = {.use_dmabuf = true};
+	struct mem_window dst_mem = {};
 	size_t len = 64UL * 1024;
 	int rc;
 
@@ -2261,10 +2296,19 @@ Test(map_xfer, device6)
 	gpu_lib_fini();
 }
 
-Test(map_xfer, device7)
+ParameterizedTestParameters(map_xfer, device7)
 {
-	struct mem_window src_mem;
-	struct mem_window dst_mem;
+	size_t param_sz;
+	static bool param[] = {false, true};
+
+	param_sz = ARRAY_SIZE(param);
+	return cr_make_param_array(bool, param, param_sz);
+}
+
+ParameterizedTest(bool *use_dmabuf, map_xfer, device7)
+{
+	struct mem_window src_mem = {.use_dmabuf = false};
+	struct mem_window dst_mem = {.use_dmabuf = *use_dmabuf};
 	size_t len = 64UL * 1024;
 	int rc;
 
@@ -2285,12 +2329,21 @@ Test(map_xfer, device7)
 	gpu_lib_fini();
 }
 
-Test(map_xfer, device8)
+ParameterizedTestParameters(map_xfer, device8)
+{
+	size_t param_sz;
+	static bool param[] = {false, true};
+
+	param_sz = ARRAY_SIZE(param);
+	return cr_make_param_array(bool, param, param_sz);
+}
+
+ParameterizedTest(bool *use_dmabuf, map_xfer, device8)
 {
 	int rc;
 	size_t len;
-	struct mem_window src_mem;
-	struct mem_window dst_mem;
+	struct mem_window src_mem = {.use_dmabuf = *use_dmabuf};
+	struct mem_window dst_mem = {.use_dmabuf = *use_dmabuf};
 
 	rc = gpu_lib_init();
 	if (rc)
@@ -2317,17 +2370,24 @@ Test(map_xfer, device8)
 #define MAP_OFFSET_SRC_OFFSET 9873U
 #define MAP_OFFSET_DST_OFFSET 32175U
 
-/* Map only a small offset of a buffer and use if for transfers. */
-Test(map_xfer, map_offset)
+ParameterizedTestParameters(map_xfer, device_map_offset)
 {
-	struct mem_window src_mem = {};
-	struct mem_window dst_mem = {};
+	size_t param_sz;
+	static bool param[] = {false, true};
+
+	param_sz = ARRAY_SIZE(param);
+	return cr_make_param_array(bool, param, param_sz);
+}
+
+/* Map only a small offset of a buffer and use if for transfers. */
+ParameterizedTest(bool *use_dmabuf, map_xfer, device_map_offset)
+{
+	struct mem_window src_mem = {.use_dmabuf = *use_dmabuf};
+	struct mem_window dst_mem = {.use_dmabuf = *use_dmabuf};
 	struct mem_window src_md_mem = {};
 	struct mem_window dst_md_mem = {};
-	struct cxi_md_hints hints = {};
 	void *base_addr;
 	size_t size;
-	int dma_buf_fd = 0;
 	int rc;
 
 	rc = gpu_lib_init();
@@ -2344,43 +2404,35 @@ Test(map_xfer, map_offset)
 	cr_assert_eq(rc, 0, "gpu_malloc() failed %d", rc);
 
 	/* Map the source buffer at an offset. */
-	if (gpu_props) {
-		rc = gpu_props(src_mem.buffer, &base_addr, &size, &dma_buf_fd);
-		cr_assert(rc == 0 || rc == -ENOSYS);
-	}
+	rc = gpu_props(&src_mem, &base_addr, &size);
+	cr_assert(rc == 0);
+
+	src_mem.hints.dmabuf_offset += MAP_OFFSET_SRC_OFFSET;
 
 	src_md_mem.buffer =
 		(void *)((uintptr_t)src_mem.buffer + MAP_OFFSET_SRC_OFFSET);
 	src_md_mem.length = MAP_OFFSET_SMALL_BUF_SIZE;
 	src_md_mem.loc = on_device;
 
-	hints.dmabuf_fd = dma_buf_fd;
-	hints.dmabuf_valid = true;
-	hints.dmabuf_offset = MAP_OFFSET_SRC_OFFSET;
-
 	rc = cxil_map(lni, src_md_mem.buffer, src_md_mem.length,
 		      CXI_MAP_WRITE | CXI_MAP_READ | CXI_MAP_PIN |
-		      CXI_MAP_DEVICE, &hints, &src_md_mem.md);
+		      CXI_MAP_DEVICE, &src_mem.hints, &src_md_mem.md);
 	cr_assert_eq(rc, 0, "cxil_map() failed %d", rc);
 
 	/* Map the destination buffer at an offset. */
-	if (gpu_props) {
-		rc = gpu_props(dst_mem.buffer, &base_addr, &size, &dma_buf_fd);
-		cr_assert(rc == 0 || rc == -ENOSYS);
-	}
+	rc = gpu_props(&dst_mem, &base_addr, &size);
+	cr_assert(rc == 0 || rc == -ENOSYS);
+
+	dst_mem.hints.dmabuf_offset += MAP_OFFSET_DST_OFFSET;
 
 	dst_md_mem.buffer =
 		(void *)((uintptr_t)dst_mem.buffer + MAP_OFFSET_DST_OFFSET);
 	dst_md_mem.length = MAP_OFFSET_SMALL_BUF_SIZE;
 	dst_md_mem.loc = on_device;
 
-	hints.dmabuf_fd = dma_buf_fd;
-	hints.dmabuf_valid = true;
-	hints.dmabuf_offset = MAP_OFFSET_DST_OFFSET;
-
 	rc = cxil_map(lni, dst_md_mem.buffer, dst_md_mem.length,
 		      CXI_MAP_WRITE | CXI_MAP_READ | CXI_MAP_PIN |
-		      CXI_MAP_DEVICE, &hints, &dst_md_mem.md);
+		      CXI_MAP_DEVICE, &dst_mem.hints, &dst_md_mem.md);
 	cr_assert_eq(rc, 0, "cxil_map() failed %d", rc);
 
 	do_transfer(&src_md_mem, &dst_md_mem);
@@ -2390,6 +2442,11 @@ Test(map_xfer, map_offset)
 
 	rc = cxil_unmap(src_md_mem.md);
 	cr_assert_eq(rc, 0, "cxil_unmap() failed %d", rc);
+
+	if (dst_mem.hints.dmabuf_valid)
+		gpu_close_fd(dst_mem.hints.dmabuf_fd);
+	if (src_mem.hints.dmabuf_valid)
+		gpu_close_fd(src_mem.hints.dmabuf_fd);
 
 	gpu_free(dst_mem.buffer);
 	gpu_free(src_mem.buffer);

@@ -47,8 +47,10 @@ struct mem_window {
 	size_t length;
 	uint8_t *buffer;
 	struct cxi_md *md;
+	struct cxi_md_hints hints;
 	enum buf_location loc;
 	bool is_device;
+	bool use_dmabuf;
 };
 
 extern uint32_t dev_id;
@@ -193,8 +195,8 @@ extern int (*gpu_host_free)(void *p);
 extern int (*gpu_memset)(void *devPtr, int value, size_t count);
 extern int (*gpu_memcpy)(void *dst, const void *src, size_t count,
 			 enum gpu_copy_dir dir);
-extern int (*gpu_props)(const void *addr, void **base, size_t *size,
-			int *dma_buf_fd);
+extern int (*gpu_props)(struct mem_window *win, void **base, size_t *size);
+extern int (*gpu_close_fd)(int dma_buf_fd);
 
 #define ONE_GB (1024*1024*1024)
 #define TWO_MB (2*1024*1024)

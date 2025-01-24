@@ -53,7 +53,8 @@ int (*gpu_host_free)(void *p);
 int (*gpu_memset)(void *devPtr, int value, size_t count);
 int (*gpu_memcpy)(void *dst, const void *src, size_t count,
 		  enum gpu_copy_dir dir);
-int (*gpu_props)(const void *addr, void **base, size_t *size, int *dma_buf_fd);
+int (*gpu_props)(struct mem_window *win, void **base, size_t *size);
+int (*gpu_close_fd)(int dma_buf_fd);
 
 int s_page_size;
 
@@ -691,37 +692,27 @@ void memset_device(struct mem_window *win, int value, size_t count)
 	cr_assert_eq(rc, 0, "gpu_memset() failed %d", rc);
 }
 
-void map_devicebuf(struct mem_window *win, uint32_t prot)
+static void map_devicebuf(struct mem_window *win, uint32_t prot)
 {
 	int rc;
-	struct cxi_md_hints hints = {};
 	void *base_addr;
 	size_t size;
-	int dma_buf_fd = 0;
 
-	hints.dmabuf_fd = dma_buf_fd;
 	prot &= (CXI_MAP_WRITE | CXI_MAP_READ);
 
 	memset(&win->md, 0, sizeof(win->md));
 	base_addr = win->buffer;
 	size = win->length;
 
-	if (gpu_props) {
-		rc = gpu_props(win->buffer, &base_addr, &size, &dma_buf_fd);
-		cr_assert(rc == 0 || rc == -ENOSYS);
-	}
-
-	if (dma_buf_fd) {
-		hints.dmabuf_fd = dma_buf_fd;
-		hints.dmabuf_valid = true;
-	}
+	rc = gpu_props(win, &base_addr, &size);
+	cr_assert_eq(rc, 0, "gpu_props failed\n");
 
 	if (win->is_device)
 		prot |= CXI_MAP_DEVICE;
 
 	rc = cxil_map(lni, base_addr, size,
 		      CXI_MAP_PIN | prot,
-		      &hints, &win->md);
+		      &win->hints, &win->md);
 	cr_assert_eq(rc, 0, "cxil_map() failed %d", rc);
 }
 
@@ -752,6 +743,9 @@ void free_unmap_devicebuf(struct mem_window *win)
 	int rc = cxil_unmap(win->md);
 
 	cr_expect_eq(rc, 0, "cxil_unmap() failed %d", rc);
+
+	if (win->hints.dmabuf_valid)
+		gpu_close_fd(win->hints.dmabuf_fd);
 
 	if (win->loc == on_device)
 		gpu_free(win->buffer);
@@ -934,6 +928,18 @@ bool is_vm(void) {
 	return hypervisor_count > 0;
 }
 
+static int no_gpu_props(struct mem_window *win, void **base, size_t *size)
+{
+	win->hints.dmabuf_valid = false;
+
+	return 0;
+}
+
+static int no_gpu_close_fd(int fd)
+{
+	return 0;
+}
+
 int gpu_lib_init(void)
 {
 	int rc = -1;
@@ -964,6 +970,8 @@ int gpu_lib_init(void)
 	gpu_host_free = NULL;
 	gpu_memset = NULL;
 	gpu_memcpy = NULL;
+	gpu_props = no_gpu_props;
+	gpu_close_fd = no_gpu_close_fd;
 
 	return rc;
 }
