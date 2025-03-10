@@ -649,6 +649,20 @@ Test(svc, svc_max)
 		     svc_desc.svc_id, rc);
 }
 
+Test(svc, svc_vni_overlap)
+{
+	int rc;
+	struct cxi_svc_desc svc_desc = {};
+
+	svc_desc.restricted_vnis = 1;
+	svc_desc.num_vld_vnis = 1;
+	svc_desc.vnis[0] = CXI_DEFAULT_SVC_ID;
+
+	/* Using the default svc should fail */
+	rc = cxil_alloc_svc(dev, &svc_desc, NULL);
+	cr_assert_eq(rc, -EEXIST, "cxil_alloc_svc() Failed. rc: %d", rc);
+}
+
 struct le_tle_params {
 	struct cxi_rsrc_limits limits;
 	int num_services;
