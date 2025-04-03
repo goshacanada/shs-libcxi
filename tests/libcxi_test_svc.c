@@ -75,6 +75,8 @@ ParameterizedTest(struct svc_alloc_params *param, svc, svc_alloc)
 	struct cxi_svc_desc svc_desc = {
 		.resource_limits = param->resource_limits,
 		.limits = param->limits,
+		.num_vld_vnis = 1,
+		.vnis[0] = 8,
 	};
 
 	int rc = cxil_alloc_svc(dev, &svc_desc, &fail_info);
@@ -134,8 +136,14 @@ Test(svc, svc_update)
 {
 	int rc, svc_id;
 	struct cxi_svc_fail_info fail_info = {};
-	struct cxi_svc_desc svc_desc = {};
-	struct cxi_svc_desc comp_desc = {};
+	struct cxi_svc_desc svc_desc = {
+		.num_vld_vnis = 1,
+		.vnis[0] = 8,
+	};
+	struct cxi_svc_desc comp_desc = {
+		.num_vld_vnis = 1,
+		.vnis[0] = 8,
+	};
 
 	/* Initial allocation of service */
 	rc = cxil_alloc_svc(dev, &svc_desc, &fail_info);
@@ -159,11 +167,6 @@ Test(svc, svc_update)
 
 	/* Revert resource limits change */
 	svc_desc.resource_limits = 0;
-
-	/* Updating VNIs without setting num_vld_vnis shouldn't work */
-	svc_desc.restricted_vnis = 1;
-	rc = cxil_update_svc(dev, &svc_desc, &fail_info);
-	cr_assert_eq(rc, -EINVAL, "cxil_update_svc(): Succeeded.(restricted_vnis) Expected Failure!");
 
 	/* Updating VNIs properly should work */
 	svc_desc.num_vld_vnis = 1;
@@ -282,6 +285,8 @@ ParameterizedTest(struct svc_ugid_params *param, svc, svc_ugid)
 	int rc;
 	struct cxi_svc_desc svc_desc = {
 		.restricted_members = 1,
+		.num_vld_vnis = 1,
+		.vnis[0] = 8,
 	};
 
 	svc_desc.members[0].svc_member.gid = param->ugid;
@@ -338,6 +343,8 @@ Test(svc, svc_change_uid)
 
 	struct cxi_svc_desc svc_desc = {
 		.restricted_members = 1,
+		.num_vld_vnis = 1,
+		.vnis[0] = 8,
 	};
 
 	svc_desc.members[0].svc_member.uid = 0;
@@ -444,6 +451,8 @@ Test(svc, svc_max)
 	struct cxi_svc_desc svc_desc = {
 		.resource_limits = true,
 		.limits = limits,
+		.num_vld_vnis = 1,
+		.vnis[0] = 8,
 	};
 	struct cxi_cq_alloc_opts opts = {
 		.count = 1024,
@@ -731,6 +740,8 @@ ParameterizedTest(struct le_tle_params *param, svc, le_tle)
 	for (i = 0; i < num_svcs; i++) {
 		svcs[i].resource_limits = true;
 		svcs[i].limits = param->limits;
+		svcs[i].num_vld_vnis = 1,
+		svcs[i].vnis[0] = 11 + i,
 		rc = cxil_alloc_svc(dev, &svcs[i], NULL);
 		cr_assert_gt(rc, 0, "cxil_alloc_svc()[%d]: Failed. Expected Success! rc:%d",
 			     i, rc);
@@ -740,6 +751,8 @@ ParameterizedTest(struct le_tle_params *param, svc, le_tle)
 	/* Show that another svc with le/tle reservations cannot be allocated */
 	svcs[num_svcs].resource_limits = true;
 	svcs[num_svcs].limits = param->limits;
+	svcs[num_svcs].num_vld_vnis = 1,
+	svcs[num_svcs].vnis[0] = 8,
 	rc = cxil_alloc_svc(dev, &svcs[num_svcs], NULL);
 	cr_assert_eq(rc, -ENOSPC);
 
