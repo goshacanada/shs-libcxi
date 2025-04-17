@@ -35,7 +35,7 @@
 #define NONFETCH_U32_HRP_DISABLE_MAX_REV 2
 
 static const char *name = "cxi_atomic_bw";
-static const char *version = "2.2.0";
+static const char *version = "2.3.0";
 
 /* Allocate INI resources */
 int atomic_bw_alloc_ini(struct util_context *util)
