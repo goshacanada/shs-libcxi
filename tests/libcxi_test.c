@@ -757,7 +757,7 @@ ParameterizedTestParameters(evtq, evtq_alloc)
 ParameterizedTest(struct evtq_alloc_params *p, evtq, evtq_alloc)
 {
 	int rc;
-	void *eq_buf;
+	void *eq_buf = NULL;
 	struct cxi_md *eq_buf_md;
 	struct cxi_eq_attr attr = {};
 	size_t queue_len = s_page_size + p->queue_len_add;

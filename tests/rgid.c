@@ -51,9 +51,9 @@ int get_rgids_avail(void)
 	if (fp) {
 		rc = fscanf(fp, "%d", &rgids);
 		cr_assert_eq(rc, 1, "rc=%d\n", rc);
+		fclose(fp);
 	}
 
-	pclose(fp);
 
 	return rgids;
 }
