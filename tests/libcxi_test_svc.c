@@ -715,12 +715,13 @@ ParameterizedTest(struct le_tle_params *param, svc, le_tle)
 	int rc, i;
 	int num_svcs = param->num_services;
 	struct cxi_svc_desc *svcs;
+	bool alloc_svcs_failed = false;
 
 	/* When running on actual HW, the LE test case needs to account for
 	 * LEs currently in use to determine max number of svcs to allocate.
 	 */
 	if (!is_vm() && num_svcs == 15) {
-		FILE *fp = popen("../utils/cxi_service list -v | awk '$0 ~ / LEs / {s+=$5} END {print s}'", "r");
+		FILE *fp = popen("cat /sys/kernel/debug/cxi/cxi0/services | awk '$0 ~ / Res / {s+=$8} END {print s}'", "r");
 		if (fp) {
 			int les_in_use;
 			int ret;
@@ -729,7 +730,10 @@ ParameterizedTest(struct le_tle_params *param, svc, le_tle)
 			cr_assert_eq(ret, 1, "ret=%d\n", ret);
 			pclose(fp);
 			num_svcs = (param->limits.les.max - les_in_use) / param->limits.les.res;
-			cr_assert_gt(num_svcs, 0, "Too many LEs are currently in use to run this test.");
+			cr_log_info("les_in_use:%d num_svcs:%d\n", les_in_use,
+				    num_svcs);
+			if (!num_svcs)
+				cr_skip("Too many LEs are currently in use to run this test");
 		} else {
 			cr_log_info("Unable to determine LEs in use");
 		}
@@ -743,9 +747,22 @@ ParameterizedTest(struct le_tle_params *param, svc, le_tle)
 		svcs[i].num_vld_vnis = 1,
 		svcs[i].vnis[0] = 11 + i,
 		rc = cxil_alloc_svc(dev, &svcs[i], NULL);
-		cr_assert_gt(rc, 0, "cxil_alloc_svc()[%d]: Failed. Expected Success! rc:%d",
-			     i, rc);
+		if (rc < 0) {
+			alloc_svcs_failed = true;
+			cr_log_info("cxil_alloc_svc()[%d]: rc:%d\n", i, rc);
+			break;
+		}
 		svcs[i].svc_id = rc;
+	}
+
+	if (alloc_svcs_failed) {
+		for (i--; i >= 0; i--) {
+			rc = cxil_destroy_svc(dev, svcs[i].svc_id);
+			if (rc)
+				cr_log_info("cxil_destroy_svc() i:%d svc_id:%d rc:%d\n", i,
+				     svcs[i].svc_id, rc);
+		}
+		cr_assert(0, "alloc svc failed");
 	}
 
 	/* Show that another svc with le/tle reservations cannot be allocated */
