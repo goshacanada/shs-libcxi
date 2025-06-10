@@ -102,6 +102,24 @@ struct cxil_pte;
 struct cxil_pte_map;
 struct cxil_wait_obj;
 
+/* Ethernet-specific structures */
+struct cxi_eth_caps {
+	uint32_t max_mtu;
+	uint32_t min_mtu;
+	bool supports_checksum;
+	bool supports_tso;
+	bool supports_rss;
+	bool supports_vlan;
+	uint32_t max_queues;
+};
+
+struct cxi_link_info {
+	uint32_t speed;         /* Link speed in Mbps */
+	uint8_t duplex;         /* 0 = half, 1 = full */
+	uint8_t autoneg;        /* 0 = off, 1 = on */
+	uint8_t link_status;    /* 0 = down, 1 = up */
+};
+
 struct cxil_device_list {
 	unsigned int count;
 	struct cxil_devinfo info[];
@@ -459,6 +477,96 @@ CXIL_API int cxil_destroy_domain(struct cxil_domain *domain);
 CXIL_API int cxil_alloc_cmdq(struct cxil_lni *lni, struct cxi_eq *evtq,
 			     const struct cxi_cq_alloc_opts *opts,
 			     struct cxi_cq **cmdq);
+
+/**
+ * @brief Initialize a CXI device for ethernet operations
+ *
+ * @param dev The CXI device to initialize
+ *
+ * @return On success, zero is returned. Otherwise, a negative errno value
+ *         is returned indicating the error.
+ */
+CXIL_API int cxil_init_eth_device(struct cxil_dev *dev);
+
+/**
+ * @brief Get device capabilities for ethernet operations
+ *
+ * @param dev The CXI device
+ * @param caps Pointer to capabilities structure to fill
+ *
+ * @return On success, zero is returned. Otherwise, a negative errno value
+ *         is returned indicating the error.
+ */
+CXIL_API int cxil_get_eth_capabilities(struct cxil_dev *dev,
+				       struct cxi_eth_caps *caps);
+
+/**
+ * @brief Get device MAC address
+ *
+ * @param dev The CXI device
+ * @param mac_addr Buffer to store the MAC address (6 bytes)
+ *
+ * @return On success, zero is returned. Otherwise, a negative errno value
+ *         is returned indicating the error.
+ */
+CXIL_API int cxil_get_mac_address(struct cxil_dev *dev, uint8_t *mac_addr);
+
+/**
+ * @brief Set device MAC address
+ *
+ * @param dev The CXI device
+ * @param mac_addr MAC address to set (6 bytes)
+ *
+ * @return On success, zero is returned. Otherwise, a negative errno value
+ *         is returned indicating the error.
+ */
+CXIL_API int cxil_set_mac_address(struct cxil_dev *dev,
+				  const uint8_t *mac_addr);
+
+/**
+ * @brief Get link status and information
+ *
+ * @param dev The CXI device
+ * @param link_info Pointer to link information structure to fill
+ *
+ * @return On success, zero is returned. Otherwise, a negative errno value
+ *         is returned indicating the error.
+ */
+CXIL_API int cxil_get_link_info(struct cxil_dev *dev,
+				struct cxi_link_info *link_info);
+
+/**
+ * @brief Set device MTU
+ *
+ * @param dev The CXI device
+ * @param mtu MTU value to set
+ *
+ * @return On success, zero is returned. Otherwise, a negative errno value
+ *         is returned indicating the error.
+ */
+CXIL_API int cxil_set_mtu(struct cxil_dev *dev, uint16_t mtu);
+
+/**
+ * @brief Enable/disable promiscuous mode
+ *
+ * @param dev The CXI device
+ * @param enable True to enable, false to disable
+ *
+ * @return On success, zero is returned. Otherwise, a negative errno value
+ *         is returned indicating the error.
+ */
+CXIL_API int cxil_set_promiscuous(struct cxil_dev *dev, bool enable);
+
+/**
+ * @brief Enable/disable allmulticast mode
+ *
+ * @param dev The CXI device
+ * @param enable True to enable, false to disable
+ *
+ * @return On success, zero is returned. Otherwise, a negative errno value
+ *         is returned indicating the error.
+ */
+CXIL_API int cxil_set_allmulticast(struct cxil_dev *dev, bool enable);
 
 /**
  * @brief Destroys a Cassini Command Queue (CMDQ) object.

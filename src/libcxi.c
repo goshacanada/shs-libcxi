@@ -1947,3 +1947,162 @@ int cxil_get_dev_info(struct cxil_dev *dev_in,
 
 	return 0;
 }
+
+/* Initialize a CXI device for ethernet operations */
+CXIL_API int cxil_init_eth_device(struct cxil_dev *dev)
+{
+	struct cxil_dev_priv *dev_priv = (struct cxil_dev_priv *)dev;
+	struct cxi_eth_init_cmd cmd = {};
+	int rc;
+
+	if (!dev)
+		return -EINVAL;
+
+	cmd.op = CXI_OP_ETH_INIT;
+	rc = device_write(dev_priv, &cmd, sizeof(cmd));
+	if (rc)
+		return rc;
+
+	return 0;
+}
+
+/* Get device capabilities for ethernet operations */
+CXIL_API int cxil_get_eth_capabilities(struct cxil_dev *dev,
+				       struct cxi_eth_caps *caps)
+{
+	struct cxil_dev_priv *dev_priv = (struct cxil_dev_priv *)dev;
+	struct cxi_eth_caps_cmd cmd = {};
+	struct cxi_eth_caps_resp resp;
+	int rc;
+
+	if (!dev || !caps)
+		return -EINVAL;
+
+	cmd.op = CXI_OP_ETH_GET_CAPS;
+	cmd.resp = &resp;
+	rc = device_write(dev_priv, &cmd, sizeof(cmd));
+	if (rc)
+		return rc;
+
+	*caps = resp.caps;
+	return 0;
+}
+
+/* Get device MAC address */
+CXIL_API int cxil_get_mac_address(struct cxil_dev *dev, uint8_t *mac_addr)
+{
+	struct cxil_dev_priv *dev_priv = (struct cxil_dev_priv *)dev;
+	struct cxi_eth_mac_cmd cmd = {};
+	struct cxi_eth_mac_resp resp;
+	int rc;
+
+	if (!dev || !mac_addr)
+		return -EINVAL;
+
+	cmd.op = CXI_OP_ETH_GET_MAC;
+	cmd.resp = &resp;
+	rc = device_write(dev_priv, &cmd, sizeof(cmd));
+	if (rc)
+		return rc;
+
+	memcpy(mac_addr, resp.mac_addr, 6);
+	return 0;
+}
+
+/* Set device MAC address */
+CXIL_API int cxil_set_mac_address(struct cxil_dev *dev, const uint8_t *mac_addr)
+{
+	struct cxil_dev_priv *dev_priv = (struct cxil_dev_priv *)dev;
+	struct cxi_eth_mac_cmd cmd = {};
+	int rc;
+
+	if (!dev || !mac_addr)
+		return -EINVAL;
+
+	cmd.op = CXI_OP_ETH_SET_MAC;
+	memcpy(cmd.mac_addr, mac_addr, 6);
+	rc = device_write(dev_priv, &cmd, sizeof(cmd));
+	if (rc)
+		return rc;
+
+	return 0;
+}
+
+/* Get link status and information */
+CXIL_API int cxil_get_link_info(struct cxil_dev *dev,
+				struct cxi_link_info *link_info)
+{
+	struct cxil_dev_priv *dev_priv = (struct cxil_dev_priv *)dev;
+	struct cxi_eth_link_cmd cmd = {};
+	struct cxi_eth_link_resp resp;
+	int rc;
+
+	if (!dev || !link_info)
+		return -EINVAL;
+
+	cmd.op = CXI_OP_ETH_GET_LINK;
+	cmd.resp = &resp;
+	rc = device_write(dev_priv, &cmd, sizeof(cmd));
+	if (rc)
+		return rc;
+
+	*link_info = resp.link_info;
+	return 0;
+}
+
+/* Set device MTU */
+CXIL_API int cxil_set_mtu(struct cxil_dev *dev, uint16_t mtu)
+{
+	struct cxil_dev_priv *dev_priv = (struct cxil_dev_priv *)dev;
+	struct cxi_eth_mtu_cmd cmd = {};
+	int rc;
+
+	if (!dev)
+		return -EINVAL;
+
+	cmd.op = CXI_OP_ETH_SET_MTU;
+	cmd.mtu = mtu;
+	rc = device_write(dev_priv, &cmd, sizeof(cmd));
+	if (rc)
+		return rc;
+
+	return 0;
+}
+
+/* Enable/disable promiscuous mode */
+CXIL_API int cxil_set_promiscuous(struct cxil_dev *dev, bool enable)
+{
+	struct cxil_dev_priv *dev_priv = (struct cxil_dev_priv *)dev;
+	struct cxi_eth_promisc_cmd cmd = {};
+	int rc;
+
+	if (!dev)
+		return -EINVAL;
+
+	cmd.op = CXI_OP_ETH_SET_PROMISC;
+	cmd.enable = enable;
+	rc = device_write(dev_priv, &cmd, sizeof(cmd));
+	if (rc)
+		return rc;
+
+	return 0;
+}
+
+/* Enable/disable allmulticast mode */
+CXIL_API int cxil_set_allmulticast(struct cxil_dev *dev, bool enable)
+{
+	struct cxil_dev_priv *dev_priv = (struct cxil_dev_priv *)dev;
+	struct cxi_eth_allmulti_cmd cmd = {};
+	int rc;
+
+	if (!dev)
+		return -EINVAL;
+
+	cmd.op = CXI_OP_ETH_SET_ALLMULTI;
+	cmd.enable = enable;
+	rc = device_write(dev_priv, &cmd, sizeof(cmd));
+	if (rc)
+		return rc;
+
+	return 0;
+}

@@ -16,6 +16,14 @@ global:
 	cxil_alloc_cmdq;
 	cxil_destroy_cmdq;
 	cxil_cmdq_ack_counter;
+	cxil_init_eth_device;
+	cxil_get_eth_capabilities;
+	cxil_get_mac_address;
+	cxil_set_mac_address;
+	cxil_get_link_info;
+	cxil_set_mtu;
+	cxil_set_promiscuous;
+	cxil_set_allmulticast;
 	cxil_map;
 	cxil_unmap;
 	cxil_alloc_evtq;
